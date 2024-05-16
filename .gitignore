@@ -1,0 +1,4 @@
+.env
+/Lavalink/application.yml
+/Lavalink/plugins/
+/Lavalink/logs/
