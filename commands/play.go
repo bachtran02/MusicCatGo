@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"regexp"
+	"strings"
 	"time"
 
 	"github.com/disgoorg/disgo/discord"
@@ -14,19 +15,18 @@ import (
 	"github.com/disgoorg/json"
 	"github.com/disgoorg/lavasearch-plugin"
 	"github.com/disgoorg/lavasrc-plugin"
+	"github.com/disgoorg/snowflake/v2"
 )
 
 var (
 	urlPattern = regexp.MustCompile("^https?://[-a-zA-Z0-9+&@#/%?=~_|!:,.;]*[-a-zA-Z0-9+&@#/%=~_|]?")
 )
 
-type TrackSource string
-
-const (
-	Spotify TrackSource = "spotify"
-	Deezer  TrackSource = "deezer"
-	YouTube TrackSource = "youtube"
-)
+type UserData struct {
+	Requester    snowflake.ID `json:"requester"`
+	PlaylistName string       `json:"playlistName"`
+	PlaylistURL  string       `json:"playlistUrl"`
+}
 
 func (c *Commands) SearchAutocomplete(e *handler.AutocompleteEvent) error {
 	query := e.Data.String("query")
@@ -162,20 +162,72 @@ func _Play(query string, e *handler.CommandEvent, c *Commands) error {
 	}
 
 	var (
-		tracks         []lavalink.Track
-		messageContent string
+		tracks       []lavalink.Track
+		userData     = UserData{Requester: e.User().ID}
+		embedBuilder discord.EmbedBuilder
 	)
 
 	switch loadData := result.Data.(type) {
-	case lavalink.Track:
-		tracks = append(tracks, loadData)
-		messageContent = "Added track to queue"
-	case lavalink.Search:
-		tracks = append(tracks, loadData[0])
-		messageContent = "Added track to queue"
+	case lavalink.Track, lavalink.Search:
+		var (
+			track    lavalink.Track
+			playtime string
+		)
+		if t, ok := loadData.(lavalink.Track); ok {
+			track, tracks = t, append(tracks, t)
+		} else if t, ok := loadData.(lavalink.Search); ok {
+			track, tracks = t[0], append(tracks, t[0])
+		}
+
+		if track.Info.IsStream {
+			playtime = "LIVE"
+		} else {
+			playtime = FormatTime(track.Info.Length)
+		}
+
+		embedBuilder = *discord.NewEmbedBuilder().
+			SetTitle("Track added").
+			SetDescription(fmt.Sprintf("[%s](%s)\n%s `%s`\n\n<@%s>",
+				track.Info.Title, *track.Info.URI, track.Info.Author,
+				playtime, userData.Requester)).
+			SetThumbnail(*track.Info.ArtworkURL)
+
 	case lavalink.Playlist:
+		var (
+			description  string
+			lavasrcInfo  lavasrc.PlaylistInfo
+			thumbnailUrl = ""
+			playlistType = "playlist"
+			numTracks    = len(loadData.Tracks)
+		)
+
 		tracks = append(tracks, loadData.Tracks...)
-		messageContent = "Added tracks to queue"
+		userData.PlaylistName = loadData.Info.Name
+		userData.PlaylistURL = query
+
+		var _ = loadData.PluginInfo.Unmarshal(&lavasrcInfo)
+
+		if lavasrcInfo.Type == "" {
+			description = fmt.Sprintf("[%s](%s) - %d tracks\n\n<@%s>",
+				loadData.Info.Name, userData.PlaylistURL, numTracks, userData.Requester)
+		} else {
+			playlistType = string(lavasrcInfo.Type)
+			thumbnailUrl = lavasrcInfo.ArtworkURL
+			switch lavasrcInfo.Type {
+			case lavasrc.PlaylistTypeArtist:
+				description = fmt.Sprintf("[%s](%s) - `%d tracks`\n\n<@%s>",
+					lavasrcInfo.Author, lavasrcInfo.URL, numTracks, userData.Requester)
+			case lavasrc.PlaylistTypePlaylist, lavasrc.PlaylistTypeAlbum:
+				description = fmt.Sprintf("[%s](%s) `%d track(s)`\n%s\n\n<@%s>",
+					loadData.Info.Name, lavasrcInfo.URL, numTracks, lavasrcInfo.Author, userData.Requester)
+			}
+		}
+
+		embedBuilder = *discord.NewEmbedBuilder().
+			SetTitle(strings.ToUpper(string(playlistType[0])) + playlistType[1:] + " added").
+			SetDescription(description).
+			SetThumbnail(thumbnailUrl)
+
 	case lavalink.Empty:
 		_, err = e.UpdateInteractionResponse(discord.MessageUpdate{
 			Content: json.Ptr("No matches found"),
@@ -189,7 +241,7 @@ func _Play(query string, e *handler.CommandEvent, c *Commands) error {
 	}
 
 	if _, err = e.UpdateInteractionResponse(discord.MessageUpdate{
-		Content: &messageContent,
+		Embeds: &[]discord.Embed{embedBuilder.Build()},
 	}); err != nil {
 		return err
 	}
@@ -202,12 +254,19 @@ func _Play(query string, e *handler.CommandEvent, c *Commands) error {
 		return err
 	}
 
+	userDataRaw, _ := json.Marshal(userData)
+	for i := range tracks {
+		tracks[i].UserData = userDataRaw
+	}
+
 	player := c.Lavalink.Player(*e.GuildID())
 	if player.Track() == nil {
 		var track lavalink.Track
 		if len(tracks) == 1 {
 			track = tracks[0]
 			tracks = nil
+		} else {
+			track, tracks = tracks[0], tracks[1:]
 		}
 		playCtx, playCancel := context.WithTimeout(e.Ctx, 10*time.Second)
 		defer playCancel()

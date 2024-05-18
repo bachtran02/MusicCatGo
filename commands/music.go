@@ -76,6 +76,10 @@ var music = discord.SlashCommandCreate{
 					Choices:     searchTypeChoices,
 				},
 			}},
+		discord.ApplicationCommandOptionSubCommand{
+			Name:        "queue",
+			Description: "Display queue",
+		},
 	}}
 
 func (cmd *Commands) Play(data discord.SlashCommandInteractionData, event *handler.CommandEvent) error {
@@ -92,19 +96,5 @@ func (cmd *Commands) Play(data discord.SlashCommandInteractionData, event *handl
 		return err
 	}
 
-	_Play(data.String("query"), event, cmd)
-	return nil
-}
-
-func (cmd *Commands) Search(data discord.SlashCommandInteractionData, event *handler.CommandEvent) error {
-
-	_, ok := cmd.Client.Caches().VoiceState(*event.GuildID(), event.User().ID)
-	if !ok {
-		return event.CreateMessage(discord.MessageCreate{
-			Content: "You need to be in a voice channel to use this command.",
-			Flags:   discord.MessageFlagEphemeral,
-		})
-	}
-
-	return nil
+	return _Play(data.String("query"), event, cmd)
 }

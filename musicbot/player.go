@@ -14,11 +14,10 @@ const (
 )
 
 type Player struct {
-	tracks []lavalink.Track
-	// prevtracks    []lavalink.Track
-	repeat RepeatMode
-	// shuffle       bool
-	channelID snowflake.ID
-	// textchannelID snowflake.ID
-	// playerID      snowflake.ID
+	tracks     []lavalink.Track
+	prevtracks []lavalink.Track
+	repeat     RepeatMode
+	shuffle    bool
+	channelID  snowflake.ID
+	messageID  snowflake.ID
 }

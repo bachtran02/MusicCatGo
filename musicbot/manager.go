@@ -7,20 +7,26 @@ import (
 	"github.com/disgoorg/snowflake/v2"
 )
 
+func NewPlayerManager() *PlayerManager {
+	return &PlayerManager{
+		Players: map[snowflake.ID]*Player{},
+	}
+}
+
 type PlayerManager struct {
 	Players map[snowflake.ID]*Player
 	mu      sync.Mutex
 }
 
-func (q *PlayerManager) GetPlayer(guildID snowflake.ID) *Player {
+func (q *PlayerManager) GetPlayer(guildID snowflake.ID) (*Player, bool) {
 	q.mu.Lock()
 	defer q.mu.Unlock()
 
 	player, ok := q.Players[guildID]
 	if !ok {
-		return nil
+		return nil, false
 	}
-	return player
+	return player, true
 }
 
 func (q *PlayerManager) Delete(guildID snowflake.ID) {
@@ -62,4 +68,15 @@ func (q *PlayerManager) Next(guildID snowflake.ID) (lavalink.Track, bool) {
 		player.tracks = player.tracks[1:]
 	}
 	return track, true
+}
+
+func (q *PlayerManager) Queue(guildID snowflake.ID) ([]lavalink.Track, bool) {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+
+	player, ok := q.Players[guildID]
+	if !ok || len(player.tracks) == 0 {
+		return []lavalink.Track{}, false
+	}
+	return player.tracks, true
 }

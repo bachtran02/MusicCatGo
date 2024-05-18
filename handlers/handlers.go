@@ -8,6 +8,8 @@ import (
 
 	"github.com/disgoorg/disgo/discord"
 	"github.com/disgoorg/disgo/events"
+	"github.com/disgoorg/disgolink/v3/disgolink"
+	"github.com/disgoorg/disgolink/v3/lavalink"
 )
 
 type Handlers struct {
@@ -47,4 +49,34 @@ func (h *Handlers) OnVoiceServerUpdate(event *events.VoiceServerUpdate) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	h.Lavalink.OnVoiceServerUpdate(ctx, event.GuildID, event.Token, *event.Endpoint)
+}
+
+func (h *Handlers) OnTrackStart(p disgolink.Player, event lavalink.TrackStartEvent) {
+	slog.Info("Track started")
+
+}
+
+func (h *Handlers) OnTrackEnd(p disgolink.Player, event lavalink.TrackEndEvent) {
+	if !event.Reason.MayStartNext() {
+		return
+	}
+	track, ok := h.PlayerManager.Next(p.GuildID())
+	if !ok {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	if err := p.Update(ctx, lavalink.WithTrack(track)); err != nil {
+		// channelID := h.PlayerManager.Player(p.GuildID())
+		// if channelID == 0 {
+		// 	return
+		// }
+		// if _, err = h.Client.Rest().CreateMessage(channelID, discord.MessageCreate{
+		// 	Content:         "failed to start next track: " + err.Error(),
+		// 	AllowedMentions: &discord.AllowedMentions{},
+		// }); err != nil {
+		// 	slog.Error("failed to send message", tint.Err(err))
+		// }
+		slog.Error("failed to send message")
+	}
 }

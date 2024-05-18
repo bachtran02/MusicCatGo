@@ -28,7 +28,7 @@ func main() {
 	slog.Info("disgo version", slog.String("version", disgo.Version))
 
 	var err error
-	b := &musicbot.Bot{}
+	b := &musicbot.Bot{PlayerManager: *musicbot.NewPlayerManager()}
 	cmds := &commands.Commands{Bot: b}
 
 	r := handler.New()
@@ -42,6 +42,7 @@ func main() {
 		r.SlashCommand("/play", cmds.Play)
 		r.SlashCommand("/search", cmds.Play)
 		r.Autocomplete("/search", cmds.SearchAutocomplete)
+		r.SlashCommand("/queue", cmds.Queue)
 	})
 
 	hdlr := &handlers.Handlers{Bot: b}
@@ -68,7 +69,12 @@ func main() {
 		slog.Error("failed to sync commands", slog.Any("err", err))
 	}
 
-	if b.Lavalink = disgolink.New(b.Client.ApplicationID()); err != nil {
+	if b.Lavalink = disgolink.New(b.Client.ApplicationID(),
+		disgolink.WithListenerFunc(hdlr.OnTrackStart),
+		disgolink.WithListenerFunc(hdlr.OnTrackEnd),
+		// disgolink.WithListenerFunc(hdlr.OnTrackException),
+		// disgolink.WithListenerFunc(hdlr.OnTrackStuck),
+	); err != nil {
 		slog.Error("failed to create disgolink client", slog.Any("err", err))
 		os.Exit(-1)
 	}
