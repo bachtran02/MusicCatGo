@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"MusicCatGo/commands"
 	"MusicCatGo/musicbot"
 	"context"
 	"log/slog"
@@ -18,21 +19,42 @@ type Handlers struct {
 
 func (h *Handlers) OnVoiceStateUpdate(event *events.GuildVoiceStateUpdate) {
 	if event.VoiceState.UserID != h.Client.ApplicationID() {
-		_, ok := h.Client.Caches().VoiceState(event.VoiceState.GuildID, h.Client.ApplicationID())
+		botVoiceState, ok := h.Client.Caches().VoiceState(event.VoiceState.GuildID, h.Client.ApplicationID())
 		if !ok || event.OldVoiceState.ChannelID == nil {
 			return
 		}
-		var voiceStates int
+
+		var (
+			voiceUsers     int
+			userDeafened   bool
+			userUndeafened bool
+		)
+
 		h.Client.Caches().VoiceStatesForEach(event.VoiceState.GuildID, func(vs discord.VoiceState) {
-			if *vs.ChannelID == *event.OldVoiceState.ChannelID {
-				voiceStates++
+			if *vs.ChannelID == *botVoiceState.ChannelID {
+				voiceUsers++
+				if vs.UserID == event.VoiceState.UserID {
+					if event.VoiceState.SelfDeaf && !event.OldVoiceState.SelfDeaf {
+						userDeafened = true
+					} else if !event.VoiceState.SelfDeaf && event.OldVoiceState.SelfDeaf {
+						userUndeafened = true
+					}
+				}
 			}
 		})
-		if voiceStates <= 1 {
+		if voiceUsers <= 1 {
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer cancel()
 			if err := h.Client.UpdateVoiceState(ctx, event.VoiceState.GuildID, nil, false, false); err != nil {
 				slog.Error("failed to disconnect from voice channel", slog.Any("error", err))
+			}
+		} else if voiceUsers == 2 {
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+			if userDeafened {
+				commands.Pause(h.Lavalink, ctx, event.VoiceState.GuildID)
+			} else if userUndeafened {
+				commands.Resume(h.Lavalink, ctx, event.VoiceState.GuildID)
 			}
 		}
 		return
