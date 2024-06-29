@@ -2,7 +2,6 @@ package commands
 
 import (
 	"github.com/disgoorg/disgo/discord"
-	"github.com/disgoorg/disgo/handler"
 )
 
 var searchTypeChoices = []discord.ApplicationCommandOptionChoiceString{
@@ -80,21 +79,12 @@ var music = discord.SlashCommandCreate{
 			Name:        "queue",
 			Description: "Display queue",
 		},
+		discord.ApplicationCommandOptionSubCommand{
+			Name:        "resume",
+			Description: "Resume player",
+		},
+		discord.ApplicationCommandOptionSubCommand{
+			Name:        "pause",
+			Description: "Pause player",
+		},
 	}}
-
-func (cmd *Commands) Play(data discord.SlashCommandInteractionData, event *handler.CommandEvent) error {
-
-	_, ok := cmd.Client.Caches().VoiceState(*event.GuildID(), event.User().ID)
-	if !ok {
-		return event.CreateMessage(discord.MessageCreate{
-			Content: "You need to be in a voice channel to use this command.",
-			Flags:   discord.MessageFlagEphemeral,
-		})
-	}
-
-	if err := event.DeferCreateMessage(false); err != nil {
-		return err
-	}
-
-	return _Play(data.String("query"), event, cmd)
-}

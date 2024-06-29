@@ -42,6 +42,8 @@ func main() {
 		r.SlashCommand("/play", cmds.Play)
 		r.SlashCommand("/search", cmds.Play)
 		r.Autocomplete("/search", cmds.SearchAutocomplete)
+		r.SlashCommand("/resume", cmds.Resume)
+		r.SlashCommand("/pause", cmds.Pause)
 		r.SlashCommand("/queue", cmds.Queue)
 	})
 

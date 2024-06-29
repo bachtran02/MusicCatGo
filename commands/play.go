@@ -281,5 +281,24 @@ func _Play(query string, e *handler.CommandEvent, c *Commands) error {
 	if len(tracks) > 0 {
 		c.PlayerManager.Add(*e.GuildID(), e.Channel().ID(), tracks...)
 	}
+
+	AutoRemove(e)
 	return nil
+}
+
+func (cmd *Commands) Play(data discord.SlashCommandInteractionData, event *handler.CommandEvent) error {
+
+	_, ok := cmd.Client.Caches().VoiceState(*event.GuildID(), event.User().ID)
+	if !ok {
+		return event.CreateMessage(discord.MessageCreate{
+			Content: "You need to be in a voice channel to use this command.",
+			Flags:   discord.MessageFlagEphemeral,
+		})
+	}
+
+	if err := event.DeferCreateMessage(false); err != nil {
+		return err
+	}
+
+	return _Play(data.String("query"), event, cmd)
 }
