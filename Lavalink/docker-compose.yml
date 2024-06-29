@@ -1,7 +1,6 @@
 services:
   lavalink:
-    # pin the image version to Lavalink v4
-    image: ghcr.io/lavalink-devs/lavalink:v4-update-lp
+    image: ghcr.io/lavalink-devs/lavalink:master
     container_name: lavalink
     restart: unless-stopped
     environment:
