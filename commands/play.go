@@ -1,6 +1,7 @@
 package commands
 
 import (
+	"MusicCatGo/utils"
 	"context"
 	"errors"
 	"fmt"
@@ -26,6 +27,7 @@ type UserData struct {
 	Requester    snowflake.ID `json:"requester"`
 	PlaylistName string       `json:"playlistName"`
 	PlaylistURL  string       `json:"playlistUrl"`
+	ChannelID    snowflake.ID `json:"channelId"`
 }
 
 func (c *Commands) SearchAutocomplete(e *handler.AutocompleteEvent) error {
@@ -135,7 +137,7 @@ func (c *Commands) SearchAutocomplete(e *handler.AutocompleteEvent) error {
 		if tracks, ok := result.Data.(lavalink.Search); ok {
 			for _, track := range tracks[:min(len(tracks), 20)] {
 				choices = append(choices, discord.AutocompleteChoiceString{
-					Name:  fmt.Sprintf("🎬 %s [%s]", Trim(track.Info.Title, 60), Trim(track.Info.Author, 20)),
+					Name:  fmt.Sprintf("🎬 %s [%s]", utils.Trim(track.Info.Title, 60), utils.Trim(track.Info.Author, 20)),
 					Value: *track.Info.URI,
 				})
 			}
@@ -162,8 +164,11 @@ func _Play(query string, e *handler.CommandEvent, c *Commands) error {
 	}
 
 	var (
-		tracks       []lavalink.Track
-		userData     = UserData{Requester: e.User().ID}
+		tracks   []lavalink.Track
+		userData = UserData{
+			Requester: e.User().ID,
+			ChannelID: e.Channel().ID(),
+		}
 		embedBuilder discord.EmbedBuilder
 	)
 
@@ -182,7 +187,7 @@ func _Play(query string, e *handler.CommandEvent, c *Commands) error {
 		if track.Info.IsStream {
 			playtime = "LIVE"
 		} else {
-			playtime = FormatTime(track.Info.Length)
+			playtime = utils.FormatTime(track.Info.Length)
 		}
 
 		embedBuilder = *discord.NewEmbedBuilder().
@@ -282,7 +287,7 @@ func _Play(query string, e *handler.CommandEvent, c *Commands) error {
 		c.PlayerManager.Add(*e.GuildID(), e.Channel().ID(), tracks...)
 	}
 
-	AutoRemove(e)
+	utils.AutoRemove(e)
 	return nil
 }
 

@@ -4,6 +4,7 @@ import (
 	"MusicCatGo/commands"
 	"MusicCatGo/musicbot"
 	"context"
+	"fmt"
 	"log/slog"
 	"time"
 
@@ -74,7 +75,19 @@ func (h *Handlers) OnVoiceServerUpdate(event *events.VoiceServerUpdate) {
 }
 
 func (h *Handlers) OnTrackStart(p disgolink.Player, event lavalink.TrackStartEvent) {
-	slog.Info("Track started")
+
+	var userData commands.UserData
+	_ = event.Track.UserData.Unmarshal(&userData)
+
+	if userData.ChannelID == 0 {
+		return
+	}
+
+	if _, err := h.Client.Rest().CreateMessage(
+		userData.ChannelID,
+		createPlayerEmbed(event.Track, userData.Requester.String())); err != nil {
+		slog.Error(fmt.Sprintf("failed to send message %s", err.Error()))
+	}
 
 }
 

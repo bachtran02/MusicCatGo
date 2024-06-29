@@ -9,16 +9,16 @@ import (
 
 func NewPlayerManager() *PlayerManager {
 	return &PlayerManager{
-		Players: map[snowflake.ID]*Player{},
+		Players: map[snowflake.ID]*PlayerState{},
 	}
 }
 
 type PlayerManager struct {
-	Players map[snowflake.ID]*Player
+	Players map[snowflake.ID]*PlayerState
 	mu      sync.Mutex
 }
 
-func (q *PlayerManager) GetPlayer(guildID snowflake.ID) (*Player, bool) {
+func (q *PlayerManager) PlayerState(guildID snowflake.ID) (*PlayerState, bool) {
 	q.mu.Lock()
 	defer q.mu.Unlock()
 
@@ -43,7 +43,7 @@ func (q *PlayerManager) Add(guildID snowflake.ID, channelID snowflake.ID, tracks
 	player, ok := q.Players[guildID]
 	if !ok {
 		// initiate new player with configs here
-		player = &Player{
+		player = &PlayerState{
 			channelID: channelID,
 		}
 		q.Players[guildID] = player

@@ -1,6 +1,7 @@
 package commands
 
 import (
+	"MusicCatGo/utils"
 	"fmt"
 
 	"github.com/disgoorg/disgo/discord"
@@ -23,7 +24,7 @@ func (cmd *Commands) Queue(data discord.SlashCommandInteractionData, event *hand
 	_ = track.UserData.Unmarshal(&userData)
 
 	content := fmt.Sprintf("[%s](%s)\n%s\n%s\n\nRequested: <@!%s>\n",
-		track.Info.Title, *track.Info.URI, track.Info.Author, PlayerBar(player), userData.Requester)
+		track.Info.Title, *track.Info.URI, track.Info.Author, utils.PlayerBar(player), userData.Requester)
 
 	if tracks, ok := cmd.PlayerManager.Queue(*event.GuildID()); ok {
 		for i, track := range tracks {
@@ -38,7 +39,7 @@ func (cmd *Commands) Queue(data discord.SlashCommandInteractionData, event *hand
 			if track.Info.IsStream {
 				Playtime = "`LIVE`"
 			} else {
-				Playtime = FormatTime(track.Info.Length)
+				Playtime = utils.FormatTime(track.Info.Length)
 			}
 
 			content += fmt.Sprintf("\n%d. [%s](%s) `%s`",

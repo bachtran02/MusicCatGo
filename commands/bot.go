@@ -1,6 +1,7 @@
 package commands
 
 import (
+	"MusicCatGo/utils"
 	"context"
 	"fmt"
 
@@ -50,7 +51,7 @@ func (c *Commands) Connect(data discord.SlashCommandInteractionData, e *handler.
 		return err
 	}
 
-	AutoRemove(e)
+	utils.AutoRemove(e)
 	return nil
 }
 
@@ -68,7 +69,7 @@ func (c *Commands) Disconnect(data discord.SlashCommandInteractionData, e *handl
 	}); err != nil {
 		return err
 	}
-	AutoRemove(e)
+	utils.AutoRemove(e)
 	return nil
 }
 
