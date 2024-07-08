@@ -27,7 +27,6 @@ type UserData struct {
 	Requester    snowflake.ID `json:"requester"`
 	PlaylistName string       `json:"playlistName"`
 	PlaylistURL  string       `json:"playlistUrl"`
-	ChannelID    snowflake.ID `json:"channelId"`
 }
 
 func (c *Commands) SearchAutocomplete(e *handler.AutocompleteEvent) error {
@@ -167,7 +166,6 @@ func _Play(query string, e *handler.CommandEvent, c *Commands) error {
 		tracks   []lavalink.Track
 		userData = UserData{
 			Requester: e.User().ID,
-			ChannelID: e.Channel().ID(),
 		}
 		embedBuilder discord.EmbedBuilder
 	)
@@ -264,15 +262,10 @@ func _Play(query string, e *handler.CommandEvent, c *Commands) error {
 		tracks[i].UserData = userDataRaw
 	}
 
+	c.PlayerManager.Add(*e.GuildID(), e.Channel().ID(), tracks...)
 	player := c.Lavalink.Player(*e.GuildID())
 	if player.Track() == nil {
-		var track lavalink.Track
-		if len(tracks) == 1 {
-			track = tracks[0]
-			tracks = nil
-		} else {
-			track, tracks = tracks[0], tracks[1:]
-		}
+		track, _ := c.PlayerManager.Next(*e.GuildID())
 		playCtx, playCancel := context.WithTimeout(e.Ctx, 10*time.Second)
 		defer playCancel()
 		if err = player.Update(playCtx, lavalink.WithTrack(track)); err != nil {
@@ -281,10 +274,6 @@ func _Play(query string, e *handler.CommandEvent, c *Commands) error {
 			})
 			return err
 		}
-	}
-
-	if len(tracks) > 0 {
-		c.PlayerManager.Add(*e.GuildID(), e.Channel().ID(), tracks...)
 	}
 
 	utils.AutoRemove(e)

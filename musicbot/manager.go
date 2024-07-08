@@ -9,53 +9,54 @@ import (
 
 func NewPlayerManager() *PlayerManager {
 	return &PlayerManager{
-		Players: map[snowflake.ID]*PlayerState{},
+		states: map[snowflake.ID]*PlayerState{},
 	}
 }
 
 type PlayerManager struct {
-	Players map[snowflake.ID]*PlayerState
-	mu      sync.Mutex
+	states map[snowflake.ID]*PlayerState
+	mu     sync.Mutex
 }
 
-func (q *PlayerManager) PlayerState(guildID snowflake.ID) (*PlayerState, bool) {
+func (q *PlayerManager) GetState(guildID snowflake.ID) (*PlayerState, bool) {
 	q.mu.Lock()
 	defer q.mu.Unlock()
 
-	player, ok := q.Players[guildID]
+	state, ok := q.states[guildID]
 	if !ok {
 		return nil, false
 	}
-	return player, true
+	return state, true
 }
 
 func (q *PlayerManager) Delete(guildID snowflake.ID) {
 	q.mu.Lock()
 	defer q.mu.Unlock()
 
-	delete(q.Players, guildID)
+	delete(q.states, guildID)
 }
 
 func (q *PlayerManager) Add(guildID snowflake.ID, channelID snowflake.ID, tracks ...lavalink.Track) {
 	q.mu.Lock()
 	defer q.mu.Unlock()
 
-	player, ok := q.Players[guildID]
+	state, ok := q.states[guildID]
 	if !ok {
-		// initiate new player with configs here
-		player = &PlayerState{
-			channelID: channelID,
+		state = &PlayerState{
+			repeat:  RepeatModeNone,
+			shuffle: false,
 		}
-		q.Players[guildID] = player
+		q.states[guildID] = state
 	}
-	player.tracks = append(player.tracks, tracks...)
+	state.channelID = channelID
+	state.tracks = append(state.tracks, tracks...)
 }
 
 func (q *PlayerManager) Next(guildID snowflake.ID) (lavalink.Track, bool) {
 	q.mu.Lock()
 	defer q.mu.Unlock()
 
-	player, ok := q.Players[guildID]
+	player, ok := q.states[guildID]
 	if !ok || len(player.tracks) == 0 {
 		return lavalink.Track{}, false
 	}
@@ -74,7 +75,7 @@ func (q *PlayerManager) Queue(guildID snowflake.ID) ([]lavalink.Track, bool) {
 	q.mu.Lock()
 	defer q.mu.Unlock()
 
-	player, ok := q.Players[guildID]
+	player, ok := q.states[guildID]
 	if !ok || len(player.tracks) == 0 {
 		return []lavalink.Track{}, false
 	}

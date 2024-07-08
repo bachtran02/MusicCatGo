@@ -87,4 +87,12 @@ var music = discord.SlashCommandCreate{
 			Name:        "pause",
 			Description: "Pause player",
 		},
+		discord.ApplicationCommandOptionSubCommand{
+			Name:        "stop",
+			Description: "Stop player",
+		},
+		discord.ApplicationCommandOptionSubCommand{
+			Name:        "skip",
+			Description: "Skip current track",
+		},
 	}}

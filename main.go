@@ -44,6 +44,8 @@ func main() {
 		r.Autocomplete("/search", cmds.SearchAutocomplete)
 		r.SlashCommand("/resume", cmds.Resume)
 		r.SlashCommand("/pause", cmds.Pause)
+		r.SlashCommand("/stop", cmds.Stop)
+		r.SlashCommand("/skip", cmds.Skip)
 		r.SlashCommand("/queue", cmds.Queue)
 	})
 
@@ -61,6 +63,7 @@ func main() {
 		bot.WithEventListeners(r),
 		bot.WithEventListenerFunc(hdlr.OnVoiceStateUpdate),
 		bot.WithEventListenerFunc(hdlr.OnVoiceServerUpdate),
+		bot.WithEventListenerFunc(hdlr.OnPlayerInteraction),
 	)
 	if err != nil {
 		slog.Error("failed to create disgo client", slog.Any("err", err))

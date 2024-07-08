@@ -79,19 +79,32 @@ func (h *Handlers) OnTrackStart(p disgolink.Player, event lavalink.TrackStartEve
 	var userData commands.UserData
 	_ = event.Track.UserData.Unmarshal(&userData)
 
-	if userData.ChannelID == 0 {
+	state, ok := h.PlayerManager.GetState(p.GuildID())
+	if !ok || state.ChannelID() == 0 {
 		return
 	}
 
-	if _, err := h.Client.Rest().CreateMessage(
-		userData.ChannelID,
-		createPlayerEmbed(event.Track, userData.Requester.String())); err != nil {
+	playerEmbed := createPlayerEmbed(event.Track, state, userData.Requester.String())
+	playerMessage, err := h.Client.Rest().CreateMessage(state.ChannelID(), playerEmbed)
+	if err != nil {
 		slog.Error(fmt.Sprintf("failed to send message %s", err.Error()))
+		return
 	}
-
+	state.SetMessageID(playerMessage.ID)
 }
 
 func (h *Handlers) OnTrackEnd(p disgolink.Player, event lavalink.TrackEndEvent) {
+
+	state, ok := h.PlayerManager.GetState(p.GuildID())
+	if !ok || state.ChannelID() == 0 || state.MessageID() == 0 {
+		slog.Error("failed to fetch old player message data")
+		return
+	}
+
+	if err := h.Client.Rest().DeleteMessage(state.ChannelID(), state.MessageID()); err != nil {
+		slog.Error("failed to delete old player message")
+	}
+
 	if !event.Reason.MayStartNext() {
 		return
 	}
@@ -102,16 +115,6 @@ func (h *Handlers) OnTrackEnd(p disgolink.Player, event lavalink.TrackEndEvent) 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	if err := p.Update(ctx, lavalink.WithTrack(track)); err != nil {
-		// channelID := h.PlayerManager.Player(p.GuildID())
-		// if channelID == 0 {
-		// 	return
-		// }
-		// if _, err = h.Client.Rest().CreateMessage(channelID, discord.MessageCreate{
-		// 	Content:         "failed to start next track: " + err.Error(),
-		// 	AllowedMentions: &discord.AllowedMentions{},
-		// }); err != nil {
-		// 	slog.Error("failed to send message", tint.Err(err))
-		// }
 		slog.Error("failed to send message")
 	}
 }
