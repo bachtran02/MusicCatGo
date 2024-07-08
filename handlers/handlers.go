@@ -53,9 +53,9 @@ func (h *Handlers) OnVoiceStateUpdate(event *events.GuildVoiceStateUpdate) {
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer cancel()
 			if userDeafened {
-				commands.Pause(h.Lavalink, ctx, event.VoiceState.GuildID)
+				commands.Pause(h.Lavalink, &h.PlayerManager, ctx, event.VoiceState.GuildID)
 			} else if userUndeafened {
-				commands.Resume(h.Lavalink, ctx, event.VoiceState.GuildID)
+				commands.Resume(h.Lavalink, &h.PlayerManager, ctx, event.VoiceState.GuildID)
 			}
 		}
 		return
@@ -76,15 +76,12 @@ func (h *Handlers) OnVoiceServerUpdate(event *events.VoiceServerUpdate) {
 
 func (h *Handlers) OnTrackStart(p disgolink.Player, event lavalink.TrackStartEvent) {
 
-	var userData commands.UserData
-	_ = event.Track.UserData.Unmarshal(&userData)
-
 	state, ok := h.PlayerManager.GetState(p.GuildID())
 	if !ok || state.ChannelID() == 0 {
 		return
 	}
 
-	playerEmbed := createPlayerEmbed(event.Track, state, userData.Requester.String())
+	playerEmbed := createPlayerEmbed(event.Track, state)
 	playerMessage, err := h.Client.Rest().CreateMessage(state.ChannelID(), playerEmbed)
 	if err != nil {
 		slog.Error(fmt.Sprintf("failed to send message %s", err.Error()))

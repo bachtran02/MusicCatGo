@@ -1,6 +1,7 @@
 package commands
 
 import (
+	"MusicCatGo/musicbot"
 	"MusicCatGo/utils"
 	"context"
 	"time"
@@ -12,7 +13,7 @@ import (
 	"github.com/disgoorg/snowflake/v2"
 )
 
-func Pause(c disgolink.Client, ctx context.Context, guildId snowflake.ID) error {
+func Pause(c disgolink.Client, playerManager *musicbot.PlayerManager, ctx context.Context, guildId snowflake.ID) error {
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 	player := c.ExistingPlayer(guildId)
@@ -20,12 +21,16 @@ func Pause(c disgolink.Client, ctx context.Context, guildId snowflake.ID) error 
 	if err := player.Update(ctx, lavalink.WithPaused(true)); err != nil {
 		return err
 	}
+
+	if state, ok := playerManager.GetState(guildId); ok {
+		state.SetPause(true)
+	}
 	return nil
 }
 
 func (c *Commands) Pause(_ discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
 
-	if err := Pause(c.Lavalink, e.Ctx, *e.GuildID()); err != nil {
+	if err := Pause(c.Lavalink, &c.PlayerManager, e.Ctx, *e.GuildID()); err != nil {
 		return e.CreateMessage(discord.MessageCreate{
 			Content: "Failed to pause player",
 			Flags:   discord.MessageFlagEphemeral,

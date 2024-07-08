@@ -1,6 +1,7 @@
 package commands
 
 import (
+	"MusicCatGo/musicbot"
 	"MusicCatGo/utils"
 	"context"
 	"fmt"
@@ -8,17 +9,18 @@ import (
 
 	"github.com/disgoorg/disgo/discord"
 	"github.com/disgoorg/disgo/handler"
+	"github.com/disgoorg/disgolink/v3/disgolink"
 	"github.com/disgoorg/disgolink/v3/lavalink"
+	"github.com/disgoorg/snowflake/v2"
 )
 
-func (c *Commands) Skip(_ discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
-	ctx, cancel := context.WithTimeout(e.Ctx, 10*time.Second)
+func Skip(c disgolink.Client, playerManager *musicbot.PlayerManager, ctx context.Context, guildId snowflake.ID) error {
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
 	var (
-		player        = c.Lavalink.ExistingPlayer(*e.GuildID())
-		currentTrack  = player.Track()
-		nextTrack, ok = c.PlayerManager.Next(*e.GuildID())
+		player        = c.ExistingPlayer(guildId)
+		nextTrack, ok = playerManager.Next(guildId)
 		updateOpt     lavalink.PlayerUpdateOpt
 	)
 
@@ -29,14 +31,25 @@ func (c *Commands) Skip(_ discord.SlashCommandInteractionData, e *handler.Comman
 	}
 
 	if err := player.Update(ctx, updateOpt); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (c *Commands) Skip(_ discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
+
+	curTrack := c.Lavalink.ExistingPlayer(*e.GuildID()).Track()
+
+	if err := Skip(c.Lavalink, &c.PlayerManager, e.Ctx, *e.GuildID()); err != nil {
 		return e.CreateMessage(discord.MessageCreate{
 			Content: "Failed to skip track",
+			Flags:   discord.MessageFlagEphemeral,
 		})
 	}
 
 	e.CreateMessage(discord.MessageCreate{
 		Embeds: []discord.Embed{{Description: fmt.Sprintf(
-			"⏭️ Track skipped: [%s](%s)", currentTrack.Info.Title, *currentTrack.Info.URI)}},
+			"⏭️ Track skipped: [%s](%s)", curTrack.Info.Title, *curTrack.Info.URI)}},
 	})
 	utils.AutoRemove(e)
 	return nil

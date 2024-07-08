@@ -1,6 +1,7 @@
 package commands
 
 import (
+	"MusicCatGo/musicbot"
 	"MusicCatGo/utils"
 	"context"
 	"time"
@@ -12,7 +13,7 @@ import (
 	"github.com/disgoorg/snowflake/v2"
 )
 
-func Resume(c disgolink.Client, ctx context.Context, guildId snowflake.ID) error {
+func Resume(c disgolink.Client, playerManager *musicbot.PlayerManager, ctx context.Context, guildId snowflake.ID) error {
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 	player := c.ExistingPlayer(guildId)
@@ -20,12 +21,16 @@ func Resume(c disgolink.Client, ctx context.Context, guildId snowflake.ID) error
 	if err := player.Update(ctx, lavalink.WithPaused(false)); err != nil {
 		return err
 	}
+
+	if state, ok := playerManager.GetState(guildId); ok {
+		state.SetPause(false)
+	}
 	return nil
 }
 
 func (c *Commands) Resume(_ discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
 
-	if err := Resume(c.Lavalink, e.Ctx, *e.GuildID()); err != nil {
+	if err := Resume(c.Lavalink, &c.PlayerManager, e.Ctx, *e.GuildID()); err != nil {
 		return e.CreateMessage(discord.MessageCreate{
 			Content: "Failed to resume player",
 			Flags:   discord.MessageFlagEphemeral,
