@@ -1,0 +1,31 @@
+services:
+  bot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: MusicCatGo
+    depends_on:
+      - lavalink
+    networks:
+      - bachgo_lavalink
+
+  lavalink:
+    image: ghcr.io/lavalink-devs/lavalink:master
+    container_name: lavalink
+    environment:
+      - SERVER_PORT=2333
+      - LAVALINK_SERVER_PASSWORD=youshallnotpass
+    volumes:
+      - ./Lavalink/application.yml:/opt/Lavalink/application.yml
+      - ./Lavalink/plugins/:/opt/Lavalink/plugins/
+      - ./Lavalink/logs/:/opt/Lavalink/logs/
+    expose:
+      - 2333
+    # ports:
+    #   - "2333:2333"
+    networks:
+      - bachgo_lavalink
+  
+networks:
+  bachgo_lavalink:
+    external: true
