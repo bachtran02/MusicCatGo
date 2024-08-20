@@ -50,6 +50,10 @@ func main() {
 	})
 
 	hdlr := &handlers.Handlers{Bot: b}
+	mytrackHandler := handlers.MyTrackHandler{
+		ChannelID: 1186464762868023336,
+		GuildID:   1113524771192307875,
+	}
 
 	b.Client, err = disgo.New(os.Getenv("TOKEN"),
 		bot.WithGatewayConfigOpts(
@@ -77,6 +81,8 @@ func main() {
 	if b.Lavalink = disgolink.New(b.Client.ApplicationID(),
 		disgolink.WithListenerFunc(hdlr.OnTrackStart),
 		disgolink.WithListenerFunc(hdlr.OnTrackEnd),
+		disgolink.WithListenerFunc(mytrackHandler.OnTrackStart),
+		disgolink.WithListenerFunc(mytrackHandler.OnTrackEnd),
 		// disgolink.WithListenerFunc(hdlr.OnTrackException),
 		// disgolink.WithListenerFunc(hdlr.OnTrackStuck),
 	); err != nil {
@@ -92,6 +98,14 @@ func main() {
 	defer b.Client.Close(context.TODO())
 
 	slog.Info("MusicCat is now running.")
+
+	// run http server to serve current track
+	httpServer := musicbot.NewHttpServer(mytrackHandler.ServeHTTP)
+	go httpServer.Start()
+	defer httpServer.Close(context.TODO())
+
+	slog.Info("MusicCat http server is now running.")
+
 	s := make(chan os.Signal, 1)
 	signal.Notify(s, syscall.SIGINT, syscall.SIGTERM, os.Interrupt)
 	<-s

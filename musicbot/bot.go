@@ -36,7 +36,7 @@ func (b *Bot) Start() error {
 		}
 	}(disgolink.NodeConfig{
 		Name:      "test-node",
-		Address:   "localhost:2333",
+		Address:   "lavalink:2333",
 		Password:  "youshallnotpass",
 		Secure:    false,
 		SessionID: "",
