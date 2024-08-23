@@ -13,10 +13,10 @@ import (
 	"github.com/disgoorg/snowflake/v2"
 )
 
-func Stop(c disgolink.Client, playerManager *musicbot.PlayerManager, ctx context.Context, guildId snowflake.ID) error {
+func Stop(c *disgolink.Client, playerManager *musicbot.PlayerManager, ctx context.Context, guildId snowflake.ID) error {
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
-	player := c.ExistingPlayer(guildId)
+	player := (*c).ExistingPlayer(guildId)
 	if err := player.Update(ctx, lavalink.WithNullTrack()); err != nil {
 		return err
 	}
@@ -26,7 +26,7 @@ func Stop(c disgolink.Client, playerManager *musicbot.PlayerManager, ctx context
 
 func (c *Commands) Stop(_ discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
 
-	if err := Stop(c.Lavalink, &c.PlayerManager, e.Ctx, *e.GuildID()); err != nil {
+	if err := Stop(&c.Lavalink, &c.PlayerManager, e.Ctx, *e.GuildID()); err != nil {
 		return e.CreateMessage(discord.MessageCreate{
 			Content: "Failed to stop player",
 			Flags:   discord.MessageFlagEphemeral,

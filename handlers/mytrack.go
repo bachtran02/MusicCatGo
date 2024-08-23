@@ -20,7 +20,11 @@ type MyTrackHandler struct {
 
 func (h *MyTrackHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
+	w.Header().Set("Content-Type", "application/json")
+
 	h.mutex.Lock()
+	defer h.mutex.Unlock()
+
 	trackData := map[string]interface{}{
 		"title":       h.track.Info.Title,
 		"artist":      h.track.Info.Author,
@@ -28,9 +32,6 @@ func (h *MyTrackHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		"artwork_url": h.track.Info.ArtworkURL,
 		"is_playing":  h.isPlaying,
 	}
-	h.mutex.Unlock()
-
-	w.Header().Set("Content-Type", "application/json")
 
 	if err := json.NewEncoder(w).Encode(trackData); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -40,20 +41,21 @@ func (h *MyTrackHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 func (h *MyTrackHandler) OnTrackStart(p disgolink.Player, event lavalink.TrackStartEvent) {
 
+	h.mutex.Lock()
+	defer h.mutex.Unlock()
 	if p.GuildID() == h.GuildID && *p.ChannelID() == h.ChannelID {
-		h.mutex.Lock()
+
 		h.track = event.Track
 		h.isPlaying = true
-		h.mutex.Unlock()
 	}
 }
 
 func (h *MyTrackHandler) OnTrackEnd(p disgolink.Player, event lavalink.TrackEndEvent) {
 
 	h.mutex.Lock()
+	defer h.mutex.Unlock()
 	if p.GuildID() == h.GuildID && h.isPlaying {
 		h.track = lavalink.Track{}
 		h.isPlaying = false
 	}
-	h.mutex.Unlock()
 }

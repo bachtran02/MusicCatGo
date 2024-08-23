@@ -38,14 +38,14 @@ func (h *Handlers) OnPlayerInteraction(event *events.ComponentInteractionCreate)
 
 	switch ButtonID(event.ComponentInteraction.ButtonInteractionData().CustomID()) {
 	case PlayNext:
-		commands.Skip(h.Lavalink, &h.PlayerManager, ctx, *event.GuildID())
+		commands.Skip(&h.Lavalink, &h.PlayerManager, ctx, *event.GuildID())
 	case StopPlayer:
-		commands.Stop(h.Lavalink, &h.PlayerManager, ctx, *event.GuildID())
+		commands.Stop(&h.Lavalink, &h.PlayerManager, ctx, *event.GuildID())
 	case ResumePlayer:
-		commands.Resume(h.Lavalink, &h.PlayerManager, ctx, *event.GuildID())
+		commands.Resume(&h.Lavalink, &h.PlayerManager, ctx, *event.GuildID())
 		updatePlayerEmbed(state, event)
 	case PausePlayer:
-		commands.Pause(h.Lavalink, &h.PlayerManager, ctx, *event.GuildID())
+		commands.Pause(&h.Lavalink, &h.PlayerManager, ctx, *event.GuildID())
 		updatePlayerEmbed(state, event)
 	}
 }

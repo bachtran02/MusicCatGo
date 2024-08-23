@@ -14,12 +14,12 @@ import (
 	"github.com/disgoorg/snowflake/v2"
 )
 
-func Skip(c disgolink.Client, playerManager *musicbot.PlayerManager, ctx context.Context, guildId snowflake.ID) error {
+func Skip(c *disgolink.Client, playerManager *musicbot.PlayerManager, ctx context.Context, guildId snowflake.ID) error {
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
 	var (
-		player        = c.ExistingPlayer(guildId)
+		player        = (*c).ExistingPlayer(guildId)
 		nextTrack, ok = playerManager.Next(guildId)
 		updateOpt     lavalink.PlayerUpdateOpt
 	)
@@ -40,7 +40,7 @@ func (c *Commands) Skip(_ discord.SlashCommandInteractionData, e *handler.Comman
 
 	curTrack := c.Lavalink.ExistingPlayer(*e.GuildID()).Track()
 
-	if err := Skip(c.Lavalink, &c.PlayerManager, e.Ctx, *e.GuildID()); err != nil {
+	if err := Skip(&c.Lavalink, &c.PlayerManager, e.Ctx, *e.GuildID()); err != nil {
 		return e.CreateMessage(discord.MessageCreate{
 			Content: "Failed to skip track",
 			Flags:   discord.MessageFlagEphemeral,
