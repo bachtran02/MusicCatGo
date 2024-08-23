@@ -16,7 +16,7 @@ func NewHttpServer(handler func(http.ResponseWriter, *http.Request)) *HttpServer
 
 	s := &HttpServer{
 		server: &http.Server{
-			Addr:    ":8080",
+			Addr:    "localhost:8080",
 			Handler: mux,
 		},
 	}

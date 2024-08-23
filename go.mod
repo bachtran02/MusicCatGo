@@ -9,7 +9,7 @@ require (
 	github.com/disgoorg/lavasearch-plugin v1.0.0
 	github.com/disgoorg/lavasrc-plugin v1.0.0
 	github.com/disgoorg/snowflake/v2 v2.0.1
-	github.com/joho/godotenv v1.5.1
+	gopkg.in/yaml.v3 v3.0.1
 )
 
 require (

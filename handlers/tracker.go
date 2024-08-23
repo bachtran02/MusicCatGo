@@ -10,7 +10,7 @@ import (
 	"github.com/disgoorg/snowflake/v2"
 )
 
-type MyTrackHandler struct {
+type TrackerHandler struct {
 	ChannelID snowflake.ID
 	GuildID   snowflake.ID
 	track     lavalink.Track
@@ -18,7 +18,7 @@ type MyTrackHandler struct {
 	mutex     sync.Mutex
 }
 
-func (h *MyTrackHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (h *TrackerHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 
@@ -39,7 +39,7 @@ func (h *MyTrackHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (h *MyTrackHandler) OnTrackStart(p disgolink.Player, event lavalink.TrackStartEvent) {
+func (h *TrackerHandler) OnTrackStart(p disgolink.Player, event lavalink.TrackStartEvent) {
 
 	h.mutex.Lock()
 	defer h.mutex.Unlock()
@@ -50,7 +50,7 @@ func (h *MyTrackHandler) OnTrackStart(p disgolink.Player, event lavalink.TrackSt
 	}
 }
 
-func (h *MyTrackHandler) OnTrackEnd(p disgolink.Player, event lavalink.TrackEndEvent) {
+func (h *TrackerHandler) OnTrackEnd(p disgolink.Player, event lavalink.TrackEndEvent) {
 
 	h.mutex.Lock()
 	defer h.mutex.Unlock()

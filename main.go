@@ -5,6 +5,7 @@ import (
 	"MusicCatGo/handlers"
 	"MusicCatGo/musicbot"
 	"context"
+	"fmt"
 	"log/slog"
 	"os"
 	"os/signal"
@@ -17,18 +18,23 @@ import (
 	"github.com/disgoorg/disgo/handler"
 	"github.com/disgoorg/disgo/handler/middleware"
 	"github.com/disgoorg/disgolink/v3/disgolink"
-	"github.com/joho/godotenv"
 )
 
 func main() {
 
-	godotenv.Load()
+	cfg, err := musicbot.ReadConfig("config.yml")
+	if err != nil {
+		slog.Error("failed to read config file", slog.Any("err", err))
+	}
 
 	slog.Info("starting MusicCat...")
 	slog.Info("disgo version", slog.String("version", disgo.Version))
+	slog.Info("disgolink version", slog.String("version", disgolink.Version))
 
-	var err error
-	b := &musicbot.Bot{PlayerManager: *musicbot.NewPlayerManager()}
+	b := &musicbot.Bot{
+		Cfg:           cfg,
+		PlayerManager: *musicbot.NewPlayerManager(),
+	}
 	cmds := &commands.Commands{Bot: b}
 
 	r := handler.New()
@@ -50,12 +56,8 @@ func main() {
 	})
 
 	hdlr := &handlers.Handlers{Bot: b}
-	mytrackHandler := handlers.MyTrackHandler{
-		ChannelID: 1186464762868023336,
-		GuildID:   1113524771192307875,
-	}
 
-	b.Client, err = disgo.New(os.Getenv("TOKEN"),
+	b.Client, err = disgo.New(cfg.Bot.Token,
 		bot.WithGatewayConfigOpts(
 			gateway.WithIntents(
 				gateway.IntentGuilds,
@@ -81,8 +83,6 @@ func main() {
 	if b.Lavalink = disgolink.New(b.Client.ApplicationID(),
 		disgolink.WithListenerFunc(hdlr.OnTrackStart),
 		disgolink.WithListenerFunc(hdlr.OnTrackEnd),
-		disgolink.WithListenerFunc(mytrackHandler.OnTrackStart),
-		disgolink.WithListenerFunc(mytrackHandler.OnTrackEnd),
 		// disgolink.WithListenerFunc(hdlr.OnTrackException),
 		// disgolink.WithListenerFunc(hdlr.OnTrackStuck),
 	); err != nil {
@@ -94,17 +94,34 @@ func main() {
 		slog.Error("failed to start bot", slog.Any("err", err))
 		os.Exit(-1)
 	}
-
 	defer b.Client.Close(context.TODO())
 
 	slog.Info("MusicCat is now running.")
 
-	// run http server to serve current track
-	httpServer := musicbot.NewHttpServer(mytrackHandler.ServeHTTP)
-	go httpServer.Start()
-	defer httpServer.Close(context.TODO())
+	// enable music tracker
+	if b.Cfg.MusicTracker.Enabled {
+		trackerHandler := handlers.TrackerHandler{
+			ChannelID: b.Cfg.MusicTracker.ChannelID,
+			GuildID:   b.Cfg.MusicTracker.GuildID,
+		}
 
-	slog.Info("MusicCat http server is now running.")
+		// run http server to serve current track
+		httpServer := musicbot.NewHttpServer(trackerHandler.ServeHTTP)
+		go httpServer.Start()
+		defer httpServer.Close(context.TODO())
+
+		// register lavalink client listener
+		b.Lavalink.AddListeners(
+			disgolink.NewListenerFunc(trackerHandler.OnTrackStart),
+			disgolink.NewListenerFunc(trackerHandler.OnTrackEnd),
+		)
+		slog.Info(
+			"MusicCat music tracker is enabled",
+			slog.String("addr", fmt.Sprintf("%s/%s",
+				b.Cfg.MusicTracker.HttpAddress,
+				b.Cfg.MusicTracker.HttpPath)),
+		)
+	}
 
 	s := make(chan os.Signal, 1)
 	signal.Notify(s, syscall.SIGINT, syscall.SIGTERM, os.Interrupt)
