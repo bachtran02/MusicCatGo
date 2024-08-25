@@ -108,7 +108,11 @@ func main() {
 		}
 
 		// run http server to serve current track
-		httpServer := musicbot.NewHttpServer(trackerHandler.ServeHTTP)
+		httpServer := musicbot.NewHttpServer(
+			trackerHandler.ServeHTTP,
+			b.Cfg.MusicTracker.HttpAddress,
+			b.Cfg.MusicTracker.HttpPath)
+
 		go httpServer.Start()
 		defer httpServer.Close(context.TODO())
 

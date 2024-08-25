@@ -2,6 +2,7 @@ package musicbot
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"net/http"
 )
@@ -10,13 +11,13 @@ type HttpServer struct {
 	server *http.Server
 }
 
-func NewHttpServer(handler func(http.ResponseWriter, *http.Request)) *HttpServer {
+func NewHttpServer(handler func(http.ResponseWriter, *http.Request), host string, path string) *HttpServer {
 	mux := http.NewServeMux()
-	mux.HandleFunc("/my_track", handler)
+	mux.HandleFunc(fmt.Sprintf("/%s", path), handler)
 
 	s := &HttpServer{
 		server: &http.Server{
-			Addr:    "localhost:8080",
+			Addr:    host,
 			Handler: mux,
 		},
 	}
