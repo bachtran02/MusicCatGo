@@ -51,6 +51,21 @@ var music = discord.SlashCommandCreate{
 					Description: "Search query for track",
 					Required:    true,
 				},
+				discord.ApplicationCommandOptionBool{
+					Name:        "next",
+					Description: "Play query next in",
+					Required:    false,
+				},
+				discord.ApplicationCommandOptionBool{
+					Name:        "loop",
+					Description: "Enable loop for query",
+					Required:    false,
+				},
+				discord.ApplicationCommandOptionBool{
+					Name:        "shuffle",
+					Description: "Enable shuffle for query",
+					Required:    false,
+				},
 			}},
 		discord.ApplicationCommandOptionSubCommand{
 			Name:        "search",
@@ -94,5 +109,9 @@ var music = discord.SlashCommandCreate{
 		discord.ApplicationCommandOptionSubCommand{
 			Name:        "skip",
 			Description: "Skip current track",
+		},
+		discord.ApplicationCommandOptionSubCommand{
+			Name:        "shuffle",
+			Description: "Shuffle queue",
 		},
 	}}

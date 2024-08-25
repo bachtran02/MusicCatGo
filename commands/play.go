@@ -1,11 +1,13 @@
 package commands
 
 import (
+	"MusicCatGo/musicbot"
 	"MusicCatGo/utils"
 	"context"
 	"errors"
 	"fmt"
 	"log/slog"
+	"math/rand"
 	"regexp"
 	"strings"
 	"time"
@@ -23,10 +25,23 @@ var (
 	urlPattern = regexp.MustCompile("^https?://[-a-zA-Z0-9+&@#/%?=~_|!:,.;]*[-a-zA-Z0-9+&@#/%=~_|]?")
 )
 
+const (
+	DefaultNext    bool = false
+	DefaultLoop    bool = false
+	DefaultShuffle bool = true
+)
+
 type UserData struct {
 	Requester    snowflake.ID `json:"requester"`
 	PlaylistName string       `json:"playlistName"`
 	PlaylistURL  string       `json:"playlistUrl"`
+}
+
+type PlayOpts struct {
+	Query    string
+	PlayNext bool
+	Loop     bool
+	Shuffle  bool
 }
 
 func (c *Commands) SearchAutocomplete(e *handler.AutocompleteEvent) error {
@@ -148,7 +163,12 @@ func (c *Commands) SearchAutocomplete(e *handler.AutocompleteEvent) error {
 	return e.AutocompleteResult(nil)
 }
 
-func _Play(query string, e *handler.CommandEvent, c *Commands) error {
+func _Play(playOpts PlayOpts, e *handler.CommandEvent, c *Commands) error {
+
+	var (
+		query = playOpts.Query
+		loop  = musicbot.LoopNone
+	)
 
 	if !urlPattern.MatchString(query) {
 		query = lavalink.SearchTypeYouTube.Apply(query)
@@ -176,6 +196,11 @@ func _Play(query string, e *handler.CommandEvent, c *Commands) error {
 			track    lavalink.Track
 			playtime string
 		)
+
+		if playOpts.Loop {
+			loop = musicbot.LoopTrack
+		}
+
 		if t, ok := loadData.(lavalink.Track); ok {
 			track, tracks = t, append(tracks, t)
 		} else if t, ok := loadData.(lavalink.Search); ok {
@@ -203,6 +228,15 @@ func _Play(query string, e *handler.CommandEvent, c *Commands) error {
 			playlistType = "playlist"
 			numTracks    = len(loadData.Tracks)
 		)
+
+		if playOpts.Shuffle {
+			rand.Shuffle(len(loadData.Tracks), func(i, j int) {
+				loadData.Tracks[i], loadData.Tracks[j] = loadData.Tracks[j], loadData.Tracks[i]
+			})
+		}
+		if playOpts.Loop {
+			loop = musicbot.LoopQueue
+		}
 
 		tracks = append(tracks, loadData.Tracks...)
 		userData.PlaylistName = loadData.Info.Name
@@ -262,7 +296,17 @@ func _Play(query string, e *handler.CommandEvent, c *Commands) error {
 		tracks[i].UserData = userDataRaw
 	}
 
-	c.PlayerManager.Add(*e.GuildID(), e.Channel().ID(), tracks...)
+	if playOpts.PlayNext {
+		c.PlayerManager.AddNext(*e.GuildID(), e.Channel().ID(), tracks...)
+	} else {
+		c.PlayerManager.Add(*e.GuildID(), e.Channel().ID(), tracks...)
+	}
+
+	state, ok := c.PlayerManager.GetState(*e.GuildID())
+	if ok {
+		state.SetLoop(loop)
+	}
+
 	player := c.Lavalink.Player(*e.GuildID())
 	if player.Track() == nil {
 		track, _ := c.PlayerManager.Next(*e.GuildID())
@@ -294,5 +338,26 @@ func (cmd *Commands) Play(data discord.SlashCommandInteractionData, event *handl
 		return err
 	}
 
-	return _Play(data.String("query"), event, cmd)
+	next, ok := data.OptBool("next")
+	if !ok {
+		next = DefaultNext
+	}
+	loop, ok := data.OptBool("loop")
+	if !ok {
+		loop = DefaultLoop
+	}
+	shuffle, ok := data.OptBool("shuffle")
+	if !ok {
+		shuffle = DefaultShuffle
+	}
+
+	return _Play(
+		PlayOpts{
+			Query:    data.String("query"),
+			PlayNext: next,
+			Loop:     loop,
+			Shuffle:  shuffle,
+		},
+		event,
+		cmd)
 }

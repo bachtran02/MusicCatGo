@@ -53,6 +53,7 @@ func main() {
 		r.SlashCommand("/stop", cmds.Stop)
 		r.SlashCommand("/skip", cmds.Skip)
 		r.SlashCommand("/queue", cmds.Queue)
+		r.SlashCommand("/shuffle", cmds.Shuffle)
 	})
 
 	hdlr := &handlers.Handlers{Bot: b}

@@ -47,6 +47,12 @@ func (h *Handlers) OnPlayerInteraction(event *events.ComponentInteractionCreate)
 	case PausePlayer:
 		commands.Pause(&h.Lavalink, &h.PlayerManager, ctx, *event.GuildID())
 		updatePlayerEmbed(state, event)
+	case ShuffleOn:
+		commands.Shuffle(&h.PlayerManager, *event.GuildID(), musicbot.ShuffleOn)
+		updatePlayerEmbed(state, event)
+	case ShuffleOff:
+		commands.Shuffle(&h.PlayerManager, *event.GuildID(), musicbot.ShuffleOff)
+		updatePlayerEmbed(state, event)
 	}
 }
 
@@ -93,12 +99,12 @@ func createButtons(state *musicbot.PlayerState) []discord.ButtonComponent {
 		playPauseButton = discord.NewSecondaryButton("", string(PausePlayer)).WithEmoji(discord.ComponentEmoji{ID: snowflake.ID(utils.PAUSE_PLAYER_EMOJI_ID)})
 	}
 
-	switch state.Repeat() {
-	case musicbot.RepeatModeNone:
+	switch state.Loop() {
+	case musicbot.LoopNone:
 		repeatButton = discord.NewSecondaryButton("", string(LoopQueue)).WithEmoji(discord.ComponentEmoji{ID: snowflake.ID(utils.LOOP_OFF_EMOJI_ID)})
-	case musicbot.RepeatModeQueue:
+	case musicbot.LoopQueue:
 		repeatButton = discord.NewSecondaryButton("", string(LoopTrack)).WithEmoji(discord.ComponentEmoji{ID: snowflake.ID(utils.LOOP_QUEUE_EMOJI_ID)})
-	case musicbot.RepeatModeTrack:
+	case musicbot.LoopTrack:
 		repeatButton = discord.NewSecondaryButton("", string(LoopOff)).WithEmoji(discord.ComponentEmoji{ID: snowflake.ID(utils.LOOP_TRACK_EMOJI_ID)})
 	}
 

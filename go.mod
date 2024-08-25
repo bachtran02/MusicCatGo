@@ -9,6 +9,7 @@ require (
 	github.com/disgoorg/lavasearch-plugin v1.0.0
 	github.com/disgoorg/lavasrc-plugin v1.0.0
 	github.com/disgoorg/snowflake/v2 v2.0.1
+	golang.org/x/exp v0.0.0-20240823005443-9b4947da3948
 	gopkg.in/yaml.v3 v3.0.1
 )
 

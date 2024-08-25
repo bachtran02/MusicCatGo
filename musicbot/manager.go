@@ -5,6 +5,7 @@ import (
 
 	"github.com/disgoorg/disgolink/v3/lavalink"
 	"github.com/disgoorg/snowflake/v2"
+	"golang.org/x/exp/rand"
 )
 
 func NewPlayerManager() *PlayerManager {
@@ -43,13 +44,27 @@ func (q *PlayerManager) Add(guildID snowflake.ID, channelID snowflake.ID, tracks
 	state, ok := q.states[guildID]
 	if !ok {
 		state = &PlayerState{
-			repeat:  RepeatModeNone,
+			loop:    LoopNone,
 			shuffle: false,
 		}
 		q.states[guildID] = state
 	}
 	state.channelID = channelID
 	state.tracks = append(state.tracks, tracks...)
+}
+
+func (q *PlayerManager) AddNext(guildID snowflake.ID, channelID snowflake.ID, tracks ...lavalink.Track) {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+
+	state, ok := q.states[guildID]
+	if !ok {
+		q.Add(guildID, channelID, tracks...)
+		return
+	}
+
+	state.channelID = channelID
+	state.tracks = append(tracks, state.tracks...)
 }
 
 func (q *PlayerManager) Next(guildID snowflake.ID) (lavalink.Track, bool) {
@@ -62,11 +77,18 @@ func (q *PlayerManager) Next(guildID snowflake.ID) (lavalink.Track, bool) {
 	}
 
 	track := player.tracks[0]
-	if player.repeat != RepeatModeTrack {
-		if player.repeat == RepeatModeQueue {
+	if player.loop != LoopTrack {
+		if player.shuffle == ShuffleOn {
+			i := rand.Intn(len(player.tracks))
+			track = player.tracks[i]
+			player.tracks = append(player.tracks[:i], player.tracks[i+1:]...)
+
+		} else {
+			player.tracks = player.tracks[1:]
+		}
+		if player.loop == LoopQueue {
 			player.tracks = append(player.tracks, track)
 		}
-		player.tracks = player.tracks[1:]
 	}
 	return track, true
 }

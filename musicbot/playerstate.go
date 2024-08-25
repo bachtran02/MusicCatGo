@@ -5,12 +5,12 @@ import (
 	"github.com/disgoorg/snowflake/v2"
 )
 
-type RepeatMode string
+type LoopMode string
 
 const (
-	RepeatModeNone  RepeatMode = "none"
-	RepeatModeTrack RepeatMode = "track"
-	RepeatModeQueue RepeatMode = "queue"
+	LoopNone  LoopMode = "none"
+	LoopTrack LoopMode = "track"
+	LoopQueue LoopMode = "queue"
 )
 
 type ShuffleMode bool
@@ -24,7 +24,7 @@ type PlayerState struct {
 	tracks []lavalink.Track
 	// prevtracks []lavalink.Track
 	paused    bool
-	repeat    RepeatMode
+	loop      LoopMode
 	shuffle   ShuffleMode
 	channelID snowflake.ID
 	messageID snowflake.ID
@@ -38,15 +38,15 @@ func (s *PlayerState) Paused() bool {
 	return s.paused
 }
 
-func (s *PlayerState) SetRepeat(repeat RepeatMode) {
-	s.repeat = repeat
+func (s *PlayerState) SetLoop(loop LoopMode) {
+	s.loop = loop
 }
 
-func (s *PlayerState) Repeat() RepeatMode {
-	return s.repeat
+func (s *PlayerState) Loop() LoopMode {
+	return s.loop
 }
 
-func (s *PlayerState) SetShuffe(shuffle ShuffleMode) {
+func (s *PlayerState) SetShuffle(shuffle ShuffleMode) {
 	s.shuffle = shuffle
 }
 
