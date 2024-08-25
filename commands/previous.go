@@ -16,15 +16,14 @@ func Previous(c *disgolink.Client, playerManager *musicbot.PlayerManager, ctx co
 	defer cancel()
 
 	var (
-		player        = (*c).ExistingPlayer(guildId)
-		prevTrack, ok = playerManager.Previous(guildId)
-		updateOpt     lavalink.PlayerUpdateOpt
+		player                             = (*c).ExistingPlayer(guildId)
+		updateOpt lavalink.PlayerUpdateOpt = lavalink.WithPosition(0)
 	)
 
-	if ok && player.Position() < lavalink.Second*10 {
-		updateOpt = lavalink.WithTrack(prevTrack)
-	} else {
-		updateOpt = lavalink.WithPosition(0)
+	if player.Position() < lavalink.Second*10 {
+		if prevTrack, ok := playerManager.Previous(guildId); ok {
+			updateOpt = lavalink.WithTrack(prevTrack)
+		}
 	}
 
 	if err := player.Update(ctx, updateOpt); err != nil {
