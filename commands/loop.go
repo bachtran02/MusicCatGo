@@ -2,6 +2,7 @@ package commands
 
 import (
 	"MusicCatGo/musicbot"
+	"MusicCatGo/utils"
 
 	"github.com/disgoorg/disgo/discord"
 	"github.com/disgoorg/disgo/handler"
@@ -16,6 +17,34 @@ func Loop(playerManager *musicbot.PlayerManager, guildId snowflake.ID, loopMode 
 	return nil
 }
 
-func (c *Commands) Loop(_ discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
+func (c *Commands) Loop(data discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
+	var (
+		body string
+		mode string = data.String("mode")
+	)
+
+	if state, ok := c.PlayerManager.GetState(*e.GuildID()); ok {
+		if mode == string(musicbot.LoopNone) {
+			state.SetLoop(musicbot.LoopNone)
+			body = "⏭️ Disable loop"
+		} else if mode == string(musicbot.LoopTrack) {
+			state.SetLoop(musicbot.LoopTrack)
+			body = "🔂 Enabled Track loop"
+		} else {
+			state.SetLoop(musicbot.LoopQueue)
+			body = "🔁 Enabled Queue loop"
+		}
+	} else {
+		return e.CreateMessage(discord.MessageCreate{
+			Content: "Player is not playing",
+			Flags:   discord.MessageFlagEphemeral,
+		})
+	}
+
+	e.CreateMessage(discord.MessageCreate{
+		Embeds: []discord.Embed{{Description: body}},
+	})
+
+	utils.AutoRemove(e)
 	return nil
 }

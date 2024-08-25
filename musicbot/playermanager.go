@@ -73,10 +73,11 @@ func (q *PlayerManager) Next(guildID snowflake.ID) (lavalink.Track, bool) {
 
 	player, ok := q.states[guildID]
 	if !ok || len(player.tracks) == 0 {
+		player.current = lavalink.Track{}
 		return lavalink.Track{}, false
 	}
 
-	track := player.tracks[0]
+	track := player.current
 	if player.loop != LoopTrack {
 		if player.shuffle == ShuffleOn {
 			i := rand.Intn(len(player.tracks))
@@ -84,12 +85,32 @@ func (q *PlayerManager) Next(guildID snowflake.ID) (lavalink.Track, bool) {
 			player.tracks = append(player.tracks[:i], player.tracks[i+1:]...)
 
 		} else {
+			track = player.tracks[0]
 			player.tracks = player.tracks[1:]
 		}
 		if player.loop == LoopQueue {
-			player.tracks = append(player.tracks, track)
+			player.tracks = append(player.tracks, player.current)
 		}
+		player.current = track
 	}
+	player.prevtracks = append(player.prevtracks, track)
+	return track, true
+}
+
+func (q *PlayerManager) Previous(guildID snowflake.ID) (lavalink.Track, bool) {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+
+	player, ok := q.states[guildID]
+	if !ok || len(player.prevtracks) < 2 {
+		return lavalink.Track{}, false
+	}
+
+	track := player.prevtracks[len(player.prevtracks)-2]
+	player.prevtracks = player.prevtracks[:len(player.prevtracks)-1]
+	player.tracks = append([]lavalink.Track{player.current}, player.tracks...)
+	player.current = track
+
 	return track, true
 }
 

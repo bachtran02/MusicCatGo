@@ -31,7 +31,7 @@ func (c *Commands) Shuffle(_ discord.SlashCommandInteractionData, e *handler.Com
 		}
 	} else {
 		return e.CreateMessage(discord.MessageCreate{
-			Content: "Failed to set shuffle",
+			Content: "Player is not playing",
 			Flags:   discord.MessageFlagEphemeral,
 		})
 	}

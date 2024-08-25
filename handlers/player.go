@@ -47,11 +47,23 @@ func (h *Handlers) OnPlayerInteraction(event *events.ComponentInteractionCreate)
 	case PausePlayer:
 		commands.Pause(&h.Lavalink, &h.PlayerManager, ctx, *event.GuildID())
 		updatePlayerEmbed(state, event)
+	case PlayPrevious:
+		commands.Previous(&h.Lavalink, &h.PlayerManager, ctx, *event.GuildID())
+		updatePlayerEmbed(state, event)
 	case ShuffleOn:
 		commands.Shuffle(&h.PlayerManager, *event.GuildID(), musicbot.ShuffleOn)
 		updatePlayerEmbed(state, event)
 	case ShuffleOff:
 		commands.Shuffle(&h.PlayerManager, *event.GuildID(), musicbot.ShuffleOff)
+		updatePlayerEmbed(state, event)
+	case LoopOff:
+		commands.Loop(&h.PlayerManager, *event.GuildID(), musicbot.LoopNone)
+		updatePlayerEmbed(state, event)
+	case LoopTrack:
+		commands.Loop(&h.PlayerManager, *event.GuildID(), musicbot.LoopTrack)
+		updatePlayerEmbed(state, event)
+	case LoopQueue:
+		commands.Loop(&h.PlayerManager, *event.GuildID(), musicbot.LoopQueue)
 		updatePlayerEmbed(state, event)
 	}
 }

@@ -38,6 +38,21 @@ var searchSourceChoices = []discord.ApplicationCommandOptionChoiceString{
 	},
 }
 
+var loopModeChoices = []discord.ApplicationCommandOptionChoiceString{
+	{
+		Name:  "none",
+		Value: "none",
+	},
+	{
+		Name:  "track",
+		Value: "track",
+	},
+	{
+		Name:  "queue",
+		Value: "queue",
+	},
+}
+
 var music = discord.SlashCommandCreate{
 	Name:        "music",
 	Description: "music commands",
@@ -114,4 +129,17 @@ var music = discord.SlashCommandCreate{
 			Name:        "shuffle",
 			Description: "Shuffle queue",
 		},
-	}}
+		discord.ApplicationCommandOptionSubCommand{
+			Name:        "loop",
+			Description: "Loop track/queue",
+			Options: []discord.ApplicationCommandOption{
+				discord.ApplicationCommandOptionString{
+					Name:        "mode",
+					Description: "Loop mode",
+					Required:    true,
+					Choices:     loopModeChoices,
+				},
+			},
+		},
+	},
+}

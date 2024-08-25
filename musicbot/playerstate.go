@@ -21,13 +21,14 @@ const (
 )
 
 type PlayerState struct {
-	tracks []lavalink.Track
-	// prevtracks []lavalink.Track
-	paused    bool
-	loop      LoopMode
-	shuffle   ShuffleMode
-	channelID snowflake.ID
-	messageID snowflake.ID
+	current    lavalink.Track
+	tracks     []lavalink.Track
+	prevtracks []lavalink.Track
+	paused     bool
+	loop       LoopMode
+	shuffle    ShuffleMode
+	channelID  snowflake.ID
+	messageID  snowflake.ID
 }
 
 func (s *PlayerState) SetPause(paused bool) {
