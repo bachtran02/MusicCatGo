@@ -18,6 +18,7 @@ import (
 	"github.com/disgoorg/disgo/handler"
 	"github.com/disgoorg/disgo/handler/middleware"
 	"github.com/disgoorg/disgolink/v3/disgolink"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 func main() {
@@ -56,6 +57,9 @@ func main() {
 		r.SlashCommand("/shuffle", cmds.Shuffle)
 		r.SlashCommand("/loop", cmds.Loop)
 	})
+	r.Route("/playlist", func(r handler.Router) {
+		r.SlashCommand("/add", cmds.PlaylistAdd)
+	})
 
 	hdlr := &handlers.Handlers{Bot: b}
 
@@ -91,6 +95,14 @@ func main() {
 		slog.Error("failed to create disgolink client", slog.Any("err", err))
 		os.Exit(-1)
 	}
+
+	b.DbPool, err = pgxpool.New(context.Background(), "postgres://musiccatgo:youshallnotpass@localhost:5432/playlist_db")
+	if err != nil {
+		slog.Error("failed to connect to database", slog.Any("error", err))
+		os.Exit(-1)
+	}
+	slog.Info("Connected to database")
+	defer b.DbPool.Close()
 
 	if err = b.Start(); err != nil {
 		slog.Error("failed to start bot", slog.Any("err", err))
