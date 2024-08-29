@@ -24,7 +24,7 @@ func NewDB(cfg DBConfig) (*DB, error) {
 	db.Pool, err = pgxpool.New(
 		ctx,
 		fmt.Sprintf("postgres://%s:%s@%s:%d/%s",
-			cfg.Host,
+			cfg.Username,
 			cfg.Password,
 			cfg.Host,
 			cfg.Port,
@@ -33,6 +33,12 @@ func NewDB(cfg DBConfig) (*DB, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	// ping db
+	if err = db.Pool.Ping(ctx); err != nil {
+		return nil, err
+	}
+
 	return &db, nil
 }
 
