@@ -16,7 +16,7 @@ func ReadConfig(path string) (Config, error) {
 	defer file.Close()
 
 	cfg := Config{
-		MusicTracker: MusicTracker{
+		MusicTracker: TrackerConfig{
 			Enabled: false,
 		},
 	}
@@ -27,9 +27,10 @@ func ReadConfig(path string) (Config, error) {
 }
 
 type Config struct {
-	Bot          BotConfig    `yaml:"bot"`
-	Nodes        []NodeConfig `yaml:"nodes"`
-	MusicTracker MusicTracker `yaml:"music_tracker"`
+	Bot          BotConfig     `yaml:"bot"`
+	Nodes        []NodeConfig  `yaml:"nodes"`
+	MusicTracker TrackerConfig `yaml:"music_tracker"`
+	DB           DBConfig      `yaml:"database"`
 }
 
 type BotConfig struct {
@@ -44,10 +45,18 @@ type NodeConfig struct {
 	SessionID string `yaml:"session_id"`
 }
 
-type MusicTracker struct {
+type TrackerConfig struct {
 	Enabled     bool         `yaml:"enabled"`
 	ChannelID   snowflake.ID `yaml:"channel_id"`
 	GuildID     snowflake.ID `yaml:"guild_id"`
 	HttpPath    string       `yaml:"http_path"`
 	HttpAddress string       `yaml:"http_address"`
+}
+
+type DBConfig struct {
+	Host     string `yaml:"host"`
+	Port     int    `yaml:"port"`
+	Username string `yaml:"username"`
+	Password string `yaml:"password"`
+	Database string `yaml:"database"`
 }

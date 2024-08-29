@@ -9,14 +9,13 @@ import (
 
 	"github.com/disgoorg/disgo/bot"
 	"github.com/disgoorg/disgolink/v3/disgolink"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type Bot struct {
 	Cfg           Config
 	Client        bot.Client
 	Lavalink      disgolink.Client
-	DbPool        *pgxpool.Pool
+	Db            *DB
 	PlayerManager PlayerManager
 }
 
