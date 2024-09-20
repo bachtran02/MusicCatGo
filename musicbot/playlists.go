@@ -1,39 +1,42 @@
 package musicbot
 
 import (
-	"github.com/disgoorg/disgolink/v3/lavalink"
+	"context"
+
 	"github.com/disgoorg/snowflake/v2"
 )
 
 type Playlist struct {
-	ID     int          `db:"id"`
+	ID     string       `db:"id"`
 	Name   string       `db:"name"`
 	UserID snowflake.ID `db:"user_id"`
 }
 
-type PlaylistTrack struct {
-	TrackID    int `db:track_id`
-	PlaylistID int `db:"playlist_id"`
-}
-
 type Track struct {
-	ID int `db:"id"`
-
-	Position int            `db:"position"`
-	Track    lavalink.Track `db:"track"`
+	ID      int    `db:"id"`
+	Title   string `db:"title"`
+	Author  string `db:"author"`
+	Encoded string `db:"encoded"`
 }
 
 type User struct {
-	ID snowflake.ID
+	ID       snowflake.ID `db:"id"`
+	Username string       `db:"username"`
 }
 
-func (d *DB) InitDb() {
-
+type PlaylistTrack struct {
+	TrackID    int `db:"track_id"`
+	PlaylistID int `db:"playlist_id"`
 }
 
-func (d *DB) CreatePlaylist(userID snowflake.ID, name string) (Playlist, error) {
-	var playlist Playlist
-	err := d.dbx.Get(&playlist, "INSERT INTO playlists (name, user_id) VALUES ($1, $2) RETURNING *", name, userID)
-	return playlist, err
+func (d *DB) CreatePlaylist(ctx context.Context, userID snowflake.ID, name string) error {
+
+	_, err := d.Pool.Exec(ctx, "INSERT INTO playlists (id, name, user_id) VALUES ($1, $2, $3)", name, userID)
+	return err
+}
+
+func (d *DB) DeletePlaylist(ctx context.Context, userID snowflake.ID, name string) error {
+
+	_, err := d.Pool.Exec(ctx, "DELETE FROM playlists WHERE ")
 
 }

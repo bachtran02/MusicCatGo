@@ -12,7 +12,7 @@ type DB struct {
 	Pool *pgxpool.Pool
 }
 
-func NewDB(cfg DBConfig) (*DB, error) {
+func NewDB(cfg DBConfig, schema string) (*DB, error) {
 
 	var err error
 
@@ -36,7 +36,11 @@ func NewDB(cfg DBConfig) (*DB, error) {
 
 	// ping db
 	if err = db.Pool.Ping(ctx); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to ping database: %w", err)
+	}
+	// execute schema
+	if _, err := db.Pool.Exec(ctx, schema); err != nil {
+		return nil, fmt.Errorf("failed to execute schema: %w", err)
 	}
 
 	return &db, nil

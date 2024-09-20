@@ -4,7 +4,9 @@ import (
 	"MusicCatGo/commands"
 	"MusicCatGo/handlers"
 	"MusicCatGo/musicbot"
+
 	"context"
+	_ "embed"
 	"fmt"
 	"log/slog"
 	"os"
@@ -19,6 +21,9 @@ import (
 	"github.com/disgoorg/disgo/handler/middleware"
 	"github.com/disgoorg/disgolink/v3/disgolink"
 )
+
+//go:embed db/schema.sql
+var DBschema string
 
 func main() {
 
@@ -95,7 +100,7 @@ func main() {
 		os.Exit(-1)
 	}
 
-	b.Db, err = musicbot.NewDB(cfg.DB)
+	b.Db, err = musicbot.NewDB(cfg.DB, DBschema)
 	if err != nil {
 		slog.Error("failed to connect to database", slog.Any("error", err))
 		os.Exit(-1)

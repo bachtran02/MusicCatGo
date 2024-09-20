@@ -1,8 +1,8 @@
 CREATE TABLE IF NOT EXISTS playlists
 (
-    id      SERIAL PRIMARY KEY,
-    name    VARCHAR   NOT NULL,
-
+    id          VARCHAR      PRIMARY KEY,
+    name        VARCHAR     NOT NULL,
+    created_at  DATETIME,
     FOREIGN KEY (user_id) REFERENCES users(id)
 );
 
@@ -22,6 +22,6 @@ CREATE TABLE IF NOT EXISTS users
 
 CREATE TABLE IF NOT EXISTS playlist_tracks
 (
-    track_id        BIGINT 
-    playlist_id     SERIAL  NOT NULL REFERENCES playlists(id) ON DELETE CASCADE,
+    track_id        BIGINT
+    playlist_id     INT NOT NULL REFERENCES playlists(id) ON DELETE CASCADE,
 );
