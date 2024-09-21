@@ -62,7 +62,10 @@ func main() {
 		r.SlashCommand("/loop", cmds.Loop)
 	})
 	r.Route("/playlist", func(r handler.Router) {
-		r.SlashCommand("/add", cmds.PlaylistAdd)
+		r.SlashCommand("/create", cmds.CreatePlaylist)
+		r.SlashCommand("/remove", cmds.RemovePlaylist)
+		r.Autocomplete("/remove", cmds.PlaylistAutocomplete)
+
 	})
 
 	hdlr := &handlers.Handlers{Bot: b}
