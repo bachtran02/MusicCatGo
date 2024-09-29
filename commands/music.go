@@ -59,7 +59,7 @@ var music = discord.SlashCommandCreate{
 	Options: []discord.ApplicationCommandOption{
 		discord.ApplicationCommandOptionSubCommand{
 			Name:        "play",
-			Description: "Plays a song from query",
+			Description: "Play a song from query",
 			Options: []discord.ApplicationCommandOption{
 				discord.ApplicationCommandOptionString{
 					Name:        "query",
@@ -103,6 +103,21 @@ var music = discord.SlashCommandCreate{
 					Description: "The type of the search",
 					Required:    false,
 					Choices:     searchTypeChoices,
+				},
+				discord.ApplicationCommandOptionBool{
+					Name:        "next",
+					Description: "Play query next in",
+					Required:    false,
+				},
+				discord.ApplicationCommandOptionBool{
+					Name:        "loop",
+					Description: "Enable loop for query",
+					Required:    false,
+				},
+				discord.ApplicationCommandOptionBool{
+					Name:        "shuffle",
+					Description: "Enable shuffle for query",
+					Required:    false,
 				},
 			}},
 		discord.ApplicationCommandOptionSubCommand{

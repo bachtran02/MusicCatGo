@@ -65,7 +65,8 @@ func main() {
 		r.SlashCommand("/create", cmds.CreatePlaylist)
 		r.SlashCommand("/remove", cmds.RemovePlaylist)
 		r.Autocomplete("/remove", cmds.PlaylistAutocomplete)
-
+		r.SlashCommand("/add", cmds.AddToPlaylist)
+		r.Autocomplete("/add", cmds.AddToPlaylistAutocomplete)
 	})
 
 	hdlr := &handlers.Handlers{Bot: b}
