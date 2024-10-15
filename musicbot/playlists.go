@@ -14,60 +14,43 @@ import (
 type Playlist struct {
 	ID        int          `db:"id"`
 	Name      string       `db:"name"`
-	UserID    snowflake.ID `db:"user_id"`
+	OwnerID   snowflake.ID `db:"owner_id"`
 	CreatedAt time.Time    `db:"created_at"`
 }
 
-type Track struct {
-	ID      string `db:"id"`
-	Title   string `db:"title"`
-	Author  string `db:"author"`
-	Encoded string `db:"encoded"`
-}
-
-type User struct {
-	ID       snowflake.ID `db:"id"`
-	Username string       `db:"username"`
-}
-
 type PlaylistTrack struct {
-	TrackID    int `db:"track_id"`
-	PlaylistID int `db:"playlist_id"`
+	ID         string         `db:"id"`
+	PlaylistID int            `db:"playlist_id"`
+	Track      lavalink.Track `db:"track"`
+	AddedAt    time.Time      `db:"added_at"`
 }
 
 func (d *DB) CreatePlaylist(ctx context.Context, userID snowflake.ID, username string, playlistName string) error {
+	_, err := d.Pool.Exec(ctx, "INSERT INTO playlists (owner_id, name) VALUES ($1, $2)", userID, playlistName)
 
-	err := d.InsertUser(ctx, userID, username)
-	if err != nil {
-		return err
-	}
-
-	// TODO: handle playlists with same name
-	err = d.InsertPlaylist(ctx, userID, playlistName)
+	// TODO: handle playlist with owner_id + name already existed
 	return err
 }
 
 func (d *DB) RemovePlaylist(ctx context.Context, userID snowflake.ID, name string) error {
-
-	_, err := d.Pool.Exec(ctx, "DELETE FROM playlists WHERE user_id = $1 AND name = $2", userID, name)
+	_, err := d.Pool.Exec(ctx, "DELETE FROM playlists WHERE owner_id = $1 AND name = $2", userID, name)
 	return err
 }
 
-func (d *DB) SearchPlaylist(ctx context.Context, userID snowflake.ID, query string) ([]Playlist, error) {
+func (d *DB) SearchPlaylist(ctx context.Context, userID snowflake.ID, query string, limit int) ([]Playlist, error) {
 	var (
 		playlists []Playlist
 		rows      pgx.Rows
-		dbquery   string
 		err       error
 	)
 
 	if query == "" {
-		dbquery = fmt.Sprintf("SELECT * FROM playlists WHERE user_id = %s", userID)
+		rows, err = d.Pool.Query(ctx, "SELECT * FROM playlists WHERE owner_id = $1 LIMIT $2", userID, limit)
 	} else {
-		dbquery = fmt.Sprintf("SELECT * FROM playlists WHERE user_id = %s AND name ILIKE '%' || %s || '%'", userID, query)
+		rows, err = d.Pool.Query(ctx, "SELECT * FROM playlists WHERE owner_id = $1 AND name ILIKE $2 || '%' LIMIT $3;", userID, query, limit)
+		fmt.Printf("SELECT * FROM playlists WHERE owner_id = %d AND name ILIKE '%%%s%%' LIMIT %d;\n", userID, query, limit)
 	}
 
-	rows, err = d.Pool.Query(ctx, dbquery)
 	if err != nil {
 		return nil, err
 	}
@@ -75,7 +58,7 @@ func (d *DB) SearchPlaylist(ctx context.Context, userID snowflake.ID, query stri
 
 	for rows.Next() {
 		var playlist Playlist
-		err := rows.Scan(&playlist.ID, &playlist.Name, &playlist.UserID, &playlist.CreatedAt)
+		err := rows.Scan(&playlist.ID, &playlist.Name, &playlist.OwnerID, &playlist.CreatedAt)
 		if err != nil {
 			slog.Error("failed to parse playlist from database", slog.Any("err", err))
 			continue
@@ -85,78 +68,55 @@ func (d *DB) SearchPlaylist(ctx context.Context, userID snowflake.ID, query stri
 	return playlists, nil
 }
 
-func (d *DB) AddTrackToPlaylist(ctx context.Context, userID snowflake.ID, playlistName string, track lavalink.Track) error {
+func (d *DB) GetPlaylist(ctx context.Context, playlistID int) (Playlist, []PlaylistTrack, error) {
+	var playlist Playlist
 
-	// insert track
-	err := d.InsertTrack(ctx, track)
-	if err != nil {
-		return err
+	row := d.Pool.QueryRow(ctx, "SELECT * FROM playlists WHERE playlist_id = $1", playlistID)
+
+	if err := row.Scan(&playlist.ID, &playlist.Name, &playlist.OwnerID, &playlist.CreatedAt); err != nil {
+		return Playlist{}, nil, err
 	}
 
-	// Fetch the playlist ID
-	var playlistID int
-	err = d.Pool.QueryRow(ctx, "SELECT id FROM playlists WHERE user_id = $1 AND name = $2", userID, playlistName).Scan(&playlistID)
-	if err != nil {
-		return err
-	}
-
-	// insert to playlist_tracks
-	err = d.InsertPlaylistTrack(ctx, *track.Info.URI, playlistID)
-	return err
-}
-
-func (d *DB) InsertPlaylist(ctx context.Context, userID snowflake.ID, playlistName string) error {
-	_, err := d.Pool.Exec(ctx, "INSERT INTO playlists (user_id, name) VALUES ($1, $2)", userID, playlistName)
-	return err
-}
-
-func (d *DB) InsertTrack(ctx context.Context, track lavalink.Track) error {
-	_, err := d.Pool.Exec(ctx, `
-		INSERT INTO tracks (id, title, author, encoded)
-		VALUES ($1, $2, $3, $4)
-		ON CONFLICT (id) DO NOTHING`, track.Info.URI, track.Info.Title, track.Info.Author, track.Encoded)
-	return err
-}
-
-func (d *DB) InsertUser(ctx context.Context, userID snowflake.ID, username string) error {
-	_, err := d.Pool.Exec(ctx, `
-		INSERT INTO users (id, username) VALUES ($1, $2)
-		ON CONFLICT (id) DO UPDATE 
-		SET username = EXCLUDED.username`, userID, username)
-	return err
-}
-
-func (d *DB) InsertPlaylistTrack(ctx context.Context, trackID string, playlistID int) error {
-	_, err := d.Pool.Exec(ctx,
-		`INSERT INTO playlist_tracks (track_id, playlist_id) VALUES ($1, $2)
-		ON CONFLICT (track_id, playlist_id) DO NOTHING`, trackID, playlistID)
-	return err
-}
-
-func (d *DB) QueryPlaylistTracks(ctx context.Context, userID snowflake.ID, playlist_name string) ([]lavalink.Track, error) {
-	var tracks []lavalink.Track
-
-	rows, err := d.Pool.Query(ctx,
-		`SELECT * FROM playlist_tracks 	
-		INNER JOIN playlists ON playlists.id = playlist_tracks.playlist_id
-		WHERE playlists.name = $1 AND playlists.user_id = $2`, playlist_name, userID)
+	var tracks []PlaylistTrack
+	rows, err := d.Pool.Query(ctx, "SELECT * FROM playlist_tracks WHERE playlist_id = $1", playlistID)
 
 	if err != nil {
-		return nil, err
+		return playlist, nil, err
 	}
-	defer rows.Close()
 
 	for rows.Next() {
-		var track Track
-		err := rows.Scan(&track.ID, &track.Title, &track.Author, &track.Encoded)
+		var track PlaylistTrack
+		err := rows.Scan(&track)
 		if err != nil {
-			slog.Error("failed to parse track from database", slog.Any("err", err))
+			slog.Error("failed to parse playlist track from database", slog.Any("err", err))
 			continue
 		}
-
-		// decode encoded lavalink track into lavalink.Track
-
 		tracks = append(tracks, track)
 	}
-	return tracks, nil
+	return playlist, tracks, nil
+}
+
+func (d *DB) AddTracksToPlaylist(ctx context.Context, playlistID int, tracks []lavalink.Track) error {
+
+	if len(tracks) == 0 {
+		return nil
+	}
+
+	query := "INSERT INTO playlist_tracks (playlist_id, track) VALUES "
+	values := []interface{}{}
+
+	for i, track := range tracks {
+		if i > 0 {
+			query += ", "
+		}
+		query += fmt.Sprintf("($1, $%d)", i+2)
+		values = append(values, track)
+	}
+
+	query += ";" // End the query
+
+	values = append([]interface{}{playlistID}, values...)
+
+	_, err := d.Pool.Exec(ctx, query, values...)
+	return err
 }

@@ -67,9 +67,12 @@ var playlist = discord.SlashCommandCreate{
 	}}
 
 func (c *Commands) PlaylistAutocomplete(e *handler.AutocompleteEvent) error {
-	query := e.Data.String("playlist_name")
+	var (
+		limit = 10
+		query = e.Data.String("playlist_name")
+	)
 
-	playlists, err := c.Db.SearchPlaylist(e.Ctx, e.User().ID, query)
+	playlists, err := c.Db.SearchPlaylist(e.Ctx, e.User().ID, query, limit)
 	if err != nil {
 		return e.AutocompleteResult(nil)
 	}
@@ -97,33 +100,35 @@ func (c *Commands) AddToPlaylistAutocomplete(e *handler.AutocompleteEvent) error
 }
 
 func (c *Commands) CreatePlaylist(data discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
+	playlistName := data.String("name")
 
-	err := c.Db.CreatePlaylist(e.Ctx, e.User().ID, e.User().Username, data.String("name"))
+	err := c.Db.CreatePlaylist(e.Ctx, e.User().ID, e.User().Username, playlistName)
 	if err != nil {
 		return e.CreateMessage(discord.MessageCreate{
-			Content: fmt.Sprintf("Failed to create playlist: %s", err),
+			Content: fmt.Sprintf("Failed to create playlist `%s`", playlistName),
 			Flags:   discord.MessageFlagEphemeral,
 		})
 	}
 	e.CreateMessage(discord.MessageCreate{
-		Embeds: []discord.Embed{{Description: "📋 Playlist created"}},
+		Embeds: []discord.Embed{{Description: fmt.Sprintf("📋 Playlist `%s` created", playlistName)}},
 	})
 	utils.AutoRemove(e)
 	return nil
 }
 
 func (c *Commands) RemovePlaylist(data discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
+	playlistName := data.String("name")
 
-	err := c.Db.RemovePlaylist(e.Ctx, e.User().ID, data.String("name"))
+	err := c.Db.RemovePlaylist(e.Ctx, e.User().ID, playlistName)
 	if err != nil {
 		slog.Error("failed to remove playlist", slog.Any("err", err))
 		return e.CreateMessage(discord.MessageCreate{
-			Content: "Failed to remove playlist",
+			Content: fmt.Sprintf("Failed to remove playlist `%s`.", playlistName),
 			Flags:   discord.MessageFlagEphemeral,
 		})
 	}
 	e.CreateMessage(discord.MessageCreate{
-		Embeds: []discord.Embed{{Description: "📋 Playlist deleted"}},
+		Embeds: []discord.Embed{{Description: fmt.Sprintf("📋 Playlist `%s` deleted", playlistName)}},
 	})
 	utils.AutoRemove(e)
 	return nil
@@ -131,7 +136,8 @@ func (c *Commands) RemovePlaylist(data discord.SlashCommandInteractionData, e *h
 
 func (c *Commands) GetPlaylists(data discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
 
-	playlists, err := c.Db.SearchPlaylist(e.Ctx, e.User().ID, "")
+	// TODO: don't hardcode limit
+	playlists, err := c.Db.SearchPlaylist(e.Ctx, e.User().ID, "", 10)
 	if err != nil {
 		slog.Error("failed to fetch playlists", slog.Any("err", err))
 		return e.CreateMessage(discord.MessageCreate{
@@ -154,13 +160,14 @@ func (c *Commands) GetPlaylists(data discord.SlashCommandInteractionData, e *han
 func (c *Commands) AddToPlaylist(data discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
 
 	var (
+		playlistID   int
 		query        = data.String("query")
 		playlistName = data.String("playlist_name")
 	)
 
 	if !urlPattern.MatchString(query) {
 		return e.CreateMessage(discord.MessageCreate{
-			Content: "Please enter URL or use search autocomplete to add to playlist",
+			Content: "Please enter a valid URL or use search autocomplete to add to playlist.",
 			Flags:   discord.MessageFlagEphemeral,
 		})
 	}
@@ -172,13 +179,26 @@ func (c *Commands) AddToPlaylist(data discord.SlashCommandInteractionData, e *ha
 		return err
 	}
 
+	playlists, err := c.Db.SearchPlaylist(e.Ctx, e.User().ID, playlistName, 1)
+	if err != nil {
+		return err
+	}
+
+	if len(playlists) == 0 {
+		return e.CreateMessage(discord.MessageCreate{
+			Content: fmt.Sprintf("Playlist `%s` does not exist.", playlistName),
+			Flags:   discord.MessageFlagEphemeral,
+		})
+	} else {
+		playlistID = playlists[0].ID
+	}
+
 	switch loadData := result.Data.(type) {
 	case lavalink.Track:
-		err := c.Db.AddTrackToPlaylist(e.Ctx, e.User().ID, playlistName, loadData)
+		err := c.Db.AddTracksToPlaylist(e.Ctx, playlistID, []lavalink.Track{loadData})
 		if err != nil {
 			return err
 		}
-
 		e.CreateMessage(discord.MessageCreate{
 			Embeds: []discord.Embed{{
 				Description: fmt.Sprintf("[%s](%s) added playlist `%s`",
@@ -191,8 +211,4 @@ func (c *Commands) AddToPlaylist(data discord.SlashCommandInteractionData, e *ha
 
 	utils.AutoRemove(e)
 	return nil
-}
-
-func (c *Commands) GetPlaylist(data discord.SlashCommandInteractionData, e *handler.CommandEvent) {
-
 }
