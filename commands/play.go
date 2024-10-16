@@ -25,10 +25,19 @@ var (
 	urlPattern = regexp.MustCompile("^https?://[-a-zA-Z0-9+&@#/%?=~_|!:,.;]*[-a-zA-Z0-9+&@#/%=~_|]?")
 )
 
+type OptBool int
+
 const (
-	DefaultNext    bool = false
-	DefaultLoop    bool = false
-	DefaultShuffle bool = true
+	OptTrue  OptBool = 1
+	OptFalse OptBool = 0
+	OptUnset OptBool = -1
+)
+
+const (
+	Unset          string = "unset"
+	DefaultNext    bool   = false
+	DefaultLoop    bool   = false
+	DefaultShuffle bool   = true
 )
 
 type UserData struct {
@@ -39,9 +48,19 @@ type UserData struct {
 
 type PlayOpts struct {
 	Query    string
-	PlayNext bool
-	Loop     bool
-	Shuffle  bool
+	PlayNext OptBool
+	Loop     OptBool
+	Shuffle  OptBool
+}
+
+func optBoolValue(b bool, ok bool) OptBool {
+	if !ok {
+		return OptUnset
+	}
+	if b {
+		return OptTrue
+	}
+	return OptFalse
 }
 
 func (c *Commands) SearchAutocomplete(e *handler.AutocompleteEvent) error {
@@ -197,7 +216,7 @@ func _Play(playOpts PlayOpts, e *handler.CommandEvent, c *Commands) error {
 			playtime string
 		)
 
-		if playOpts.Loop {
+		if playOpts.Loop == OptTrue {
 			loop = musicbot.LoopTrack
 		}
 
@@ -229,12 +248,12 @@ func _Play(playOpts PlayOpts, e *handler.CommandEvent, c *Commands) error {
 			numTracks    = len(loadData.Tracks)
 		)
 
-		if playOpts.Shuffle {
+		if playOpts.Shuffle != OptFalse {
 			rand.Shuffle(len(loadData.Tracks), func(i, j int) {
 				loadData.Tracks[i], loadData.Tracks[j] = loadData.Tracks[j], loadData.Tracks[i]
 			})
 		}
-		if playOpts.Loop {
+		if playOpts.Loop == OptTrue {
 			loop = musicbot.LoopQueue
 		}
 
@@ -296,7 +315,7 @@ func _Play(playOpts PlayOpts, e *handler.CommandEvent, c *Commands) error {
 		tracks[i].UserData = userDataRaw
 	}
 
-	if playOpts.PlayNext {
+	if playOpts.PlayNext == OptTrue {
 		c.PlayerManager.AddNext(*e.GuildID(), e.Channel().ID(), tracks...)
 	} else {
 		c.PlayerManager.Add(*e.GuildID(), e.Channel().ID(), tracks...)
@@ -304,7 +323,15 @@ func _Play(playOpts PlayOpts, e *handler.CommandEvent, c *Commands) error {
 
 	state, ok := c.PlayerManager.GetState(*e.GuildID())
 	if ok {
-		state.SetLoop(loop)
+		if playOpts.Loop != OptUnset {
+			state.SetLoop(loop)
+		}
+		if playOpts.Shuffle == OptTrue {
+			state.SetShuffle(musicbot.ShuffleOn)
+		}
+		if playOpts.Shuffle == OptFalse {
+			state.SetShuffle(musicbot.ShuffleOff)
+		}
 	}
 
 	player := c.Lavalink.Player(*e.GuildID())
@@ -338,18 +365,20 @@ func (cmd *Commands) Play(data discord.SlashCommandInteractionData, event *handl
 		return err
 	}
 
-	next, ok := data.OptBool("next")
-	if !ok {
-		next = DefaultNext
-	}
-	loop, ok := data.OptBool("loop")
-	if !ok {
-		loop = DefaultLoop
-	}
-	shuffle, ok := data.OptBool("shuffle")
-	if !ok {
-		shuffle = DefaultShuffle
-	}
+	var (
+		next    OptBool
+		loop    OptBool
+		shuffle OptBool
+	)
+
+	n, ok := data.OptBool("next")
+	next = optBoolValue(n, ok)
+
+	l, ok := data.OptBool("loop")
+	loop = optBoolValue(l, ok)
+
+	s, ok := data.OptBool("shuffle")
+	shuffle = optBoolValue(s, ok)
 
 	return _Play(
 		PlayOpts{

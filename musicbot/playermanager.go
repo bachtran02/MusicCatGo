@@ -88,7 +88,7 @@ func (q *PlayerManager) Next(guildID snowflake.ID) (lavalink.Track, bool) {
 			track = player.tracks[0]
 			player.tracks = player.tracks[1:]
 		}
-		if player.loop == LoopQueue {
+		if player.loop == LoopQueue && player.current.Encoded != "" {
 			player.tracks = append(player.tracks, player.current)
 		}
 		player.current = track
