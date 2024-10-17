@@ -1,6 +1,8 @@
 module MusicCatGo
 
-go 1.21.0
+go 1.22
+
+toolchain go1.22.4
 
 require (
 	github.com/disgoorg/disgo v0.18.5
@@ -14,7 +16,8 @@ require (
 )
 
 require (
-	github.com/gorilla/websocket v1.5.1 // indirect
+	github.com/disgoorg/lavaqueue-plugin v0.0.0-20240708001834-dafe3f63f5a0 // indirect
+	github.com/gorilla/websocket v1.5.3 // indirect
 	github.com/sasha-s/go-csync v0.0.0-20240107134140-fcbab37b09ad // indirect
 	golang.org/x/crypto v0.19.0 // indirect
 	golang.org/x/net v0.21.0 // indirect
