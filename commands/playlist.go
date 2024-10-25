@@ -36,6 +36,10 @@ var playlist = discord.SlashCommandCreate{
 				},
 			}},
 		discord.ApplicationCommandOptionSubCommand{
+			Name:        "list",
+			Description: "List playlist",
+		},
+		discord.ApplicationCommandOptionSubCommand{
 			Name:        "add",
 			Description: "Add track(s) to playlist",
 			Options: []discord.ApplicationCommandOption{
@@ -134,7 +138,7 @@ func (c *Commands) RemovePlaylist(data discord.SlashCommandInteractionData, e *h
 	return nil
 }
 
-func (c *Commands) GetPlaylists(data discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
+func (c *Commands) ListPlaylists(data discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
 
 	// TODO: don't hardcode limit
 	playlists, err := c.Db.SearchPlaylist(e.Ctx, e.User().ID, "", 10)
@@ -153,8 +157,19 @@ func (c *Commands) GetPlaylists(data discord.SlashCommandInteractionData, e *han
 		})
 	}
 
-	// TODO: return list of playlists embed
-	return nil
+	var content string
+	for _, playlist := range playlists {
+		content += fmt.Sprintf(
+			"- %s `%d track(s)` <t:%d:R>", playlist.Name, 5, playlist.CreatedAt.Unix())
+	}
+
+	embed := discord.NewEmbedBuilder().
+		SetTitle("Playlists").
+		SetDescription(content)
+
+	return e.CreateMessage(discord.MessageCreate{
+		Embeds: []discord.Embed{embed.Build()},
+	})
 }
 
 func (c *Commands) AddToPlaylist(data discord.SlashCommandInteractionData, e *handler.CommandEvent) error {

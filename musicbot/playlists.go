@@ -2,6 +2,7 @@ package musicbot
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"time"
@@ -48,7 +49,6 @@ func (d *DB) SearchPlaylist(ctx context.Context, userID snowflake.ID, query stri
 		rows, err = d.Pool.Query(ctx, "SELECT * FROM playlists WHERE owner_id = $1 LIMIT $2", userID, limit)
 	} else {
 		rows, err = d.Pool.Query(ctx, "SELECT * FROM playlists WHERE owner_id = $1 AND name ILIKE $2 || '%' LIMIT $3;", userID, query, limit)
-		fmt.Printf("SELECT * FROM playlists WHERE owner_id = %d AND name ILIKE '%%%s%%' LIMIT %d;\n", userID, query, limit)
 	}
 
 	if err != nil {
@@ -71,7 +71,7 @@ func (d *DB) SearchPlaylist(ctx context.Context, userID snowflake.ID, query stri
 func (d *DB) GetPlaylist(ctx context.Context, playlistID int) (Playlist, []PlaylistTrack, error) {
 	var playlist Playlist
 
-	row := d.Pool.QueryRow(ctx, "SELECT * FROM playlists WHERE playlist_id = $1", playlistID)
+	row := d.Pool.QueryRow(ctx, "SELECT * FROM playlists WHERE id = $1", playlistID)
 
 	if err := row.Scan(&playlist.ID, &playlist.Name, &playlist.OwnerID, &playlist.CreatedAt); err != nil {
 		return Playlist{}, nil, err
@@ -85,12 +85,23 @@ func (d *DB) GetPlaylist(ctx context.Context, playlistID int) (Playlist, []Playl
 	}
 
 	for rows.Next() {
-		var track PlaylistTrack
-		err := rows.Scan(&track)
+		var (
+			track    PlaylistTrack
+			rawTrack json.RawMessage
+			err      error
+		)
+		err = rows.Scan(&track.ID, &track.PlaylistID, &rawTrack, &track.AddedAt)
 		if err != nil {
 			slog.Error("failed to parse playlist track from database", slog.Any("err", err))
 			continue
 		}
+
+		err = json.Unmarshal(rawTrack, &track.Track)
+		if err != nil {
+			slog.Error("failed to decode track object", slog.Any("err", err))
+			continue
+		}
+
 		tracks = append(tracks, track)
 	}
 	return playlist, tracks, nil

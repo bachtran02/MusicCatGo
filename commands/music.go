@@ -121,6 +121,32 @@ var music = discord.SlashCommandCreate{
 				},
 			}},
 		discord.ApplicationCommandOptionSubCommand{
+			Name:        "playlist",
+			Description: "Add & play your saved playlists",
+			Options: []discord.ApplicationCommandOption{
+				discord.ApplicationCommandOptionString{
+					Name:         "playlist_name",
+					Description:  "Playlist name",
+					Required:     true,
+					Autocomplete: true,
+				},
+				discord.ApplicationCommandOptionBool{
+					Name:        "next",
+					Description: "Play query next in queue",
+					Required:    false,
+				},
+				discord.ApplicationCommandOptionBool{
+					Name:        "loop",
+					Description: "Enable loop for query",
+					Required:    false,
+				},
+				discord.ApplicationCommandOptionBool{
+					Name:        "shuffle",
+					Description: "Enable shuffle for query",
+					Required:    false,
+				},
+			}},
+		discord.ApplicationCommandOptionSubCommand{
 			Name:        "queue",
 			Description: "Display queue",
 		},

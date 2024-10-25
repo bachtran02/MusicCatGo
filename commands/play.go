@@ -6,7 +6,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log/slog"
 	"math/rand"
 	"regexp"
 	"strings"
@@ -25,19 +24,19 @@ var (
 	urlPattern = regexp.MustCompile("^https?://[-a-zA-Z0-9+&@#/%?=~_|!:,.;]*[-a-zA-Z0-9+&@#/%=~_|]?")
 )
 
+type SearchType int
+
+const (
+	LavalinkSearch SearchType = 0
+	PlaylistSearch SearchType = 1
+)
+
 type OptBool int
 
 const (
 	OptTrue  OptBool = 1
 	OptFalse OptBool = 0
 	OptUnset OptBool = -1
-)
-
-const (
-	Unset          string = "unset"
-	DefaultNext    bool   = false
-	DefaultLoop    bool   = false
-	DefaultShuffle bool   = true
 )
 
 type UserData struct {
@@ -48,6 +47,7 @@ type UserData struct {
 
 type PlayOpts struct {
 	Query    string
+	Type     SearchType
 	PlayNext OptBool
 	Loop     OptBool
 	Shuffle  OptBool
@@ -182,22 +182,79 @@ func (c *Commands) SearchAutocomplete(e *handler.AutocompleteEvent) error {
 	return e.AutocompleteResult(nil)
 }
 
-func _Play(playOpts PlayOpts, e *handler.CommandEvent, c *Commands) error {
-
-	var (
-		query = playOpts.Query
-		loop  = musicbot.LoopNone
-	)
+func SearchLavalink(query string, c *Commands, ctx context.Context) (*lavalink.LoadResult, error) {
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
 
 	if !urlPattern.MatchString(query) {
 		query = lavalink.SearchTypeYouTube.Apply(query)
 	}
 
-	ctx, cancel := context.WithTimeout(e.Ctx, 10*time.Second)
-	defer cancel()
 	result, err := c.Lavalink.BestNode().LoadTracks(ctx, query)
 	if err != nil {
-		slog.Any("error", err)
+		return nil, fmt.Errorf("failed to load tracks from Lavalink for query '%s': %w", query, err)
+	}
+
+	return result, nil
+}
+
+func SearchPlaylist(playlistName string, c *Commands, userId snowflake.ID, ctx context.Context) (*lavalink.LoadResult, error) {
+
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+
+	playlists, err := c.Db.SearchPlaylist(ctx, userId, playlistName, 1)
+	if err != nil {
+		return nil, err
+	}
+
+	playlistId := playlists[0].ID
+
+	dbPlaylist, dbTracks, err := c.Db.GetPlaylist(ctx, playlistId)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load tracks from playlist with id '%d': %w", playlistId, err)
+	}
+
+	playlist := lavalink.Playlist{
+		Info: lavalink.PlaylistInfo{
+			Name:          dbPlaylist.Name,
+			SelectedTrack: -1,
+		},
+		Tracks: make([]lavalink.Track, 0),
+	}
+
+	for _, track := range dbTracks {
+		playlist.Tracks = append(playlist.Tracks, track.Track)
+	}
+
+	return &lavalink.LoadResult{
+		LoadType: lavalink.LoadTypePlaylist,
+		Data:     playlist,
+	}, nil
+}
+
+func SearchQuery(query string, searchType SearchType, c *Commands, userId snowflake.ID, ctx context.Context) (*lavalink.LoadResult, error) {
+
+	switch searchType {
+	case LavalinkSearch:
+		return SearchLavalink(query, c, ctx)
+
+	case PlaylistSearch:
+		return SearchPlaylist(query, c, userId, ctx)
+	}
+	return nil, fmt.Errorf("unknown search type")
+}
+
+func _Play(playOpts PlayOpts, e *handler.CommandEvent, c *Commands) error {
+
+	var (
+		query      = playOpts.Query
+		searchType = playOpts.Type
+		loop       = musicbot.LoopNone
+	)
+
+	result, err := SearchQuery(query, searchType, c, e.User().ID, e.Ctx)
+	if err != nil {
 		return err
 	}
 
@@ -259,13 +316,13 @@ func _Play(playOpts PlayOpts, e *handler.CommandEvent, c *Commands) error {
 
 		tracks = append(tracks, loadData.Tracks...)
 		userData.PlaylistName = loadData.Info.Name
-		userData.PlaylistURL = query
+		// userData.PlaylistURL = query
 
 		var _ = loadData.PluginInfo.Unmarshal(&lavasrcInfo)
 
 		if lavasrcInfo.Type == "" {
-			description = fmt.Sprintf("[%s](%s) - %d tracks\n\n<@%s>",
-				loadData.Info.Name, userData.PlaylistURL, numTracks, userData.Requester)
+			description = fmt.Sprintf("%s - %d tracks\n\n<@%s>",
+				loadData.Info.Name, numTracks, userData.Requester)
 		} else {
 			playlistType = string(lavasrcInfo.Type)
 			thumbnailUrl = lavasrcInfo.ArtworkURL
@@ -351,6 +408,47 @@ func _Play(playOpts PlayOpts, e *handler.CommandEvent, c *Commands) error {
 	return nil
 }
 
+func (cmd *Commands) PlayPlaylist(data discord.SlashCommandInteractionData, event *handler.CommandEvent) error {
+
+	_, ok := cmd.Client.Caches().VoiceState(*event.GuildID(), event.User().ID)
+	if !ok {
+		return event.CreateMessage(discord.MessageCreate{
+			Content: "You need to be in a voice channel to use this command.",
+			Flags:   discord.MessageFlagEphemeral,
+		})
+	}
+
+	if err := event.DeferCreateMessage(false); err != nil {
+		return err
+	}
+
+	var (
+		next    OptBool
+		loop    OptBool
+		shuffle OptBool
+	)
+
+	n, ok := data.OptBool("next")
+	next = optBoolValue(n, ok)
+
+	l, ok := data.OptBool("loop")
+	loop = optBoolValue(l, ok)
+
+	s, ok := data.OptBool("shuffle")
+	shuffle = optBoolValue(s, ok)
+
+	return _Play(
+		PlayOpts{
+			Query:    data.String("playlist_name"),
+			Type:     PlaylistSearch,
+			PlayNext: next,
+			Loop:     loop,
+			Shuffle:  shuffle,
+		},
+		event,
+		cmd)
+}
+
 func (cmd *Commands) Play(data discord.SlashCommandInteractionData, event *handler.CommandEvent) error {
 
 	_, ok := cmd.Client.Caches().VoiceState(*event.GuildID(), event.User().ID)
@@ -383,6 +481,7 @@ func (cmd *Commands) Play(data discord.SlashCommandInteractionData, event *handl
 	return _Play(
 		PlayOpts{
 			Query:    data.String("query"),
+			Type:     LavalinkSearch,
 			PlayNext: next,
 			Loop:     loop,
 			Shuffle:  shuffle,
