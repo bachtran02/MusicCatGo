@@ -4,7 +4,9 @@ import (
 	"MusicCatGo/commands"
 	"MusicCatGo/handlers"
 	"MusicCatGo/musicbot"
+
 	"context"
+	_ "embed"
 	"fmt"
 	"log/slog"
 	"os"
@@ -19,6 +21,9 @@ import (
 	"github.com/disgoorg/disgo/handler/middleware"
 	"github.com/disgoorg/disgolink/v3/disgolink"
 )
+
+//go:embed db/schema.sql
+var DBschema string
 
 func main() {
 
@@ -55,6 +60,20 @@ func main() {
 		r.SlashCommand("/queue", cmds.Queue)
 		r.SlashCommand("/shuffle", cmds.Shuffle)
 		r.SlashCommand("/loop", cmds.Loop)
+		r.SlashCommand("/playlist", cmds.PlayPlaylist)
+		r.Autocomplete("/playlist", cmds.PlaylistAutocomplete)
+		// r.SlashCommand("/remove", cmds.Remove)
+		// r.Autocomplete("/remove", cmds.RemoveAutocomplete)
+	})
+	r.Route("/playlist", func(r handler.Router) {
+		r.SlashCommand("/create", cmds.CreatePlaylist)
+		r.SlashCommand("/delete", cmds.DeletePlaylist)
+		r.Autocomplete("/delete", cmds.PlaylistAutocomplete)
+		r.SlashCommand("/list", cmds.ListPlaylists)
+		r.SlashCommand("/add", cmds.AddToPlaylist)
+		r.Autocomplete("/add", cmds.AddToPlaylistAutocomplete)
+		r.SlashCommand("/remove", cmds.RemoveFromPlaylist)
+		r.Autocomplete("/remove", cmds.RemoveFromPlaylistAutocomplete)
 	})
 
 	hdlr := &handlers.Handlers{Bot: b}
@@ -91,6 +110,14 @@ func main() {
 		slog.Error("failed to create disgolink client", slog.Any("err", err))
 		os.Exit(-1)
 	}
+
+	b.Db, err = musicbot.NewDB(cfg.DB, DBschema)
+	if err != nil {
+		slog.Error("failed to connect to database", slog.Any("error", err))
+		os.Exit(-1)
+	}
+	slog.Info("Connected to database")
+	defer b.Db.Close()
 
 	if err = b.Start(); err != nil {
 		slog.Error("failed to start bot", slog.Any("err", err))

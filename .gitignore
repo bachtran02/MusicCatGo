@@ -3,3 +3,4 @@ config.yml
 /Lavalink/application.yml
 /Lavalink/plugins/
 /Lavalink/logs/
+/postgres-data

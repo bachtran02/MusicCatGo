@@ -15,6 +15,7 @@ type Bot struct {
 	Cfg           Config
 	Client        bot.Client
 	Lavalink      disgolink.Client
+	Db            *DB
 	PlayerManager PlayerManager
 }
 
