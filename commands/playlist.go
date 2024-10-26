@@ -8,6 +8,7 @@ import (
 	"github.com/disgoorg/disgo/discord"
 	"github.com/disgoorg/disgo/handler"
 	"github.com/disgoorg/disgolink/v3/lavalink"
+	"github.com/disgoorg/lavasrc-plugin"
 )
 
 var playlist = discord.SlashCommandCreate{
@@ -19,17 +20,17 @@ var playlist = discord.SlashCommandCreate{
 			Description: "Create new playlist",
 			Options: []discord.ApplicationCommandOption{
 				discord.ApplicationCommandOptionString{
-					Name:        "name",
+					Name:        "playlist_name",
 					Description: "Playlist name",
 					Required:    true,
 				},
 			}},
 		discord.ApplicationCommandOptionSubCommand{
-			Name:        "remove",
-			Description: "Remove playlist",
+			Name:        "delete",
+			Description: "Delete playlist",
 			Options: []discord.ApplicationCommandOption{
-				discord.ApplicationCommandOptionString{
-					Name:         "name",
+				discord.ApplicationCommandOptionInt{
+					Name:         "playlist",
 					Description:  "Playlist name",
 					Required:     true,
 					Autocomplete: true,
@@ -49,8 +50,8 @@ var playlist = discord.SlashCommandCreate{
 					Required:     true,
 					Autocomplete: true,
 				},
-				discord.ApplicationCommandOptionString{
-					Name:         "playlist_name",
+				discord.ApplicationCommandOptionInt{
+					Name:         "playlist",
 					Description:  "Playlist name",
 					Required:     true,
 					Autocomplete: true,
@@ -68,12 +69,30 @@ var playlist = discord.SlashCommandCreate{
 					Choices:     searchTypeChoices,
 				},
 			}},
+		discord.ApplicationCommandOptionSubCommand{
+			Name:        "remove",
+			Description: "Remove track from playlist",
+			Options: []discord.ApplicationCommandOption{
+				discord.ApplicationCommandOptionInt{
+					Name:         "playlist",
+					Description:  "Playlist to remove track from",
+					Required:     true,
+					Autocomplete: true,
+				},
+				discord.ApplicationCommandOptionInt{
+					Name:         "track",
+					Description:  "Track to remove",
+					Required:     true,
+					Autocomplete: true,
+				},
+			},
+		},
 	}}
 
 func (c *Commands) PlaylistAutocomplete(e *handler.AutocompleteEvent) error {
 	var (
 		limit = 10
-		query = e.Data.String("playlist_name")
+		query = e.Data.String("playlist")
 	)
 
 	playlists, err := c.Db.SearchPlaylist(e.Ctx, e.User().ID, query, limit)
@@ -83,9 +102,39 @@ func (c *Commands) PlaylistAutocomplete(e *handler.AutocompleteEvent) error {
 
 	choices := make([]discord.AutocompleteChoice, 0)
 	for _, playlist := range playlists {
-		choices = append(choices, discord.AutocompleteChoiceString{
+		choices = append(choices, discord.AutocompleteChoiceInt{
 			Name:  playlist.Name,
-			Value: playlist.Name,
+			Value: playlist.ID,
+		})
+	}
+	return e.AutocompleteResult(choices)
+}
+
+func (c *Commands) PlaylistTrackAutocomplete(e *handler.AutocompleteEvent) error {
+	var (
+		limit = 10
+		query = e.Data.String("playlist")
+	)
+
+	playlists, err := c.Db.SearchPlaylist(e.Ctx, e.User().ID, query, limit)
+	if err != nil || len(playlists) == 0 {
+		return e.AutocompleteResult(nil)
+	}
+
+	// Get ID of top matched playlist
+	playlistId := playlists[0].ID
+
+	// Fetch playlist info
+	_, playlistTracks, err := c.Db.GetPlaylist(e.Ctx, playlistId)
+	if err != nil || len(playlistTracks) == 0 {
+		return e.AutocompleteResult(nil)
+	}
+
+	choices := make([]discord.AutocompleteChoice, 0)
+	for _, playlistTrack := range playlistTracks {
+		choices = append(choices, discord.AutocompleteChoiceInt{
+			Name:  playlistTrack.TrackTitle,
+			Value: playlistTrack.ID,
 		})
 	}
 	return e.AutocompleteResult(choices)
@@ -95,7 +144,7 @@ func (c *Commands) AddToPlaylistAutocomplete(e *handler.AutocompleteEvent) error
 
 	focusedOption := e.Data.Focused()
 	switch focusedOption.Name {
-	case "playlist_name":
+	case "playlist":
 		return c.PlaylistAutocomplete(e)
 	case "query":
 		return c.SearchAutocomplete(e)
@@ -103,13 +152,25 @@ func (c *Commands) AddToPlaylistAutocomplete(e *handler.AutocompleteEvent) error
 	return nil
 }
 
+func (c *Commands) RemoveFromPlaylistAutocomplete(e *handler.AutocompleteEvent) error {
+
+	focusedOption := e.Data.Focused()
+	switch focusedOption.Name {
+	case "playlist":
+		return c.PlaylistAutocomplete(e)
+	case "track":
+		return c.PlaylistTrackAutocomplete(e)
+	}
+	return nil
+}
+
 func (c *Commands) CreatePlaylist(data discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
-	playlistName := data.String("name")
+	playlistName := data.String("playlist_name")
 
 	err := c.Db.CreatePlaylist(e.Ctx, e.User().ID, e.User().Username, playlistName)
 	if err != nil {
 		return e.CreateMessage(discord.MessageCreate{
-			Content: fmt.Sprintf("Failed to create playlist `%s`", playlistName),
+			Content: fmt.Sprintf("Failed to create playlist: `%s`", err),
 			Flags:   discord.MessageFlagEphemeral,
 		})
 	}
@@ -120,19 +181,18 @@ func (c *Commands) CreatePlaylist(data discord.SlashCommandInteractionData, e *h
 	return nil
 }
 
-func (c *Commands) RemovePlaylist(data discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
-	playlistName := data.String("name")
+func (c *Commands) DeletePlaylist(data discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
+	playlistId := data.Int("playlist")
 
-	err := c.Db.RemovePlaylist(e.Ctx, e.User().ID, playlistName)
+	err := c.Db.DeletePlaylist(e.Ctx, playlistId)
 	if err != nil {
-		slog.Error("failed to remove playlist", slog.Any("err", err))
 		return e.CreateMessage(discord.MessageCreate{
-			Content: fmt.Sprintf("Failed to remove playlist `%s`.", playlistName),
+			Content: "Failed to remove playlist",
 			Flags:   discord.MessageFlagEphemeral,
 		})
 	}
 	e.CreateMessage(discord.MessageCreate{
-		Embeds: []discord.Embed{{Description: fmt.Sprintf("📋 Playlist `%s` deleted", playlistName)}},
+		Embeds: []discord.Embed{{Description: "📋 Playlist deleted"}},
 	})
 	utils.AutoRemove(e)
 	return nil
@@ -143,9 +203,8 @@ func (c *Commands) ListPlaylists(data discord.SlashCommandInteractionData, e *ha
 	// TODO: don't hardcode limit
 	playlists, err := c.Db.SearchPlaylist(e.Ctx, e.User().ID, "", 10)
 	if err != nil {
-		slog.Error("failed to fetch playlists", slog.Any("err", err))
 		return e.CreateMessage(discord.MessageCreate{
-			Content: "Failed to fetch playlists",
+			Content: err.Error(),
 			Flags:   discord.MessageFlagEphemeral,
 		})
 	}
@@ -157,10 +216,10 @@ func (c *Commands) ListPlaylists(data discord.SlashCommandInteractionData, e *ha
 		})
 	}
 
-	var content string
+	content := fmt.Sprintf("<@%s>'s playlists\n", e.User().ID)
 	for _, playlist := range playlists {
 		content += fmt.Sprintf(
-			"- %s `%d track(s)` <t:%d:R>", playlist.Name, 5, playlist.CreatedAt.Unix())
+			"- `%s` <t:%d:R>\n", playlist.Name, playlist.CreatedAt.Unix())
 	}
 
 	embed := discord.NewEmbedBuilder().
@@ -173,11 +232,9 @@ func (c *Commands) ListPlaylists(data discord.SlashCommandInteractionData, e *ha
 }
 
 func (c *Commands) AddToPlaylist(data discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
-
 	var (
-		playlistID   int
-		query        = data.String("query")
-		playlistName = data.String("playlist_name")
+		playlistID = data.Int("playlist")
+		query      = data.String("query")
 	)
 
 	if !urlPattern.MatchString(query) {
@@ -187,43 +244,74 @@ func (c *Commands) AddToPlaylist(data discord.SlashCommandInteractionData, e *ha
 		})
 	}
 
-	// TODO: if track exists in track database then no need to search
 	result, err := c.Lavalink.BestNode().LoadTracks(e.Ctx, query)
 	if err != nil {
 		slog.Error("failed to load tracks", slog.Any("err", err))
 		return err
 	}
 
-	playlists, err := c.Db.SearchPlaylist(e.Ctx, e.User().ID, playlistName, 1)
+	playlist, _, err := c.Db.GetPlaylist(e.Ctx, playlistID)
 	if err != nil {
-		return err
-	}
-
-	if len(playlists) == 0 {
 		return e.CreateMessage(discord.MessageCreate{
-			Content: fmt.Sprintf("Playlist `%s` does not exist.", playlistName),
+			Content: err.Error(),
 			Flags:   discord.MessageFlagEphemeral,
 		})
-	} else {
-		playlistID = playlists[0].ID
 	}
 
 	switch loadData := result.Data.(type) {
 	case lavalink.Track:
-		err := c.Db.AddTracksToPlaylist(e.Ctx, playlistID, []lavalink.Track{loadData})
+		err := c.Db.AddTracksToPlaylist(e.Ctx, playlistID, e.User().ID, []lavalink.Track{loadData})
 		if err != nil {
 			return err
 		}
 		e.CreateMessage(discord.MessageCreate{
 			Embeds: []discord.Embed{{
-				Description: fmt.Sprintf("[%s](%s) added playlist `%s`",
-					loadData.Info.Title, *loadData.Info.URI, playlistName)}},
+				Description: fmt.Sprintf("[%s](%s) added to playlist `%s`",
+					loadData.Info.Title, *loadData.Info.URI, playlist.Name)}},
 		})
 
 	case lavalink.Playlist:
-		return nil
+		err := c.Db.AddTracksToPlaylist(e.Ctx, playlistID, e.User().ID, loadData.Tracks)
+		if err != nil {
+			return err
+		}
+
+		var (
+			playlistInfo lavasrc.PlaylistInfo
+			description  string
+		)
+
+		err = loadData.PluginInfo.Unmarshal(&playlistInfo)
+		if err != nil {
+			description = fmt.Sprintf("Playlist %s `%d tracks` added to playlist `%s`",
+				loadData.Info.Name, len(loadData.Tracks), playlist.Name)
+		} else {
+			description = fmt.Sprintf("Playlist [%s](%s) `%d tracks` added to playlist `%s`",
+				loadData.Info.Name, playlistInfo.URL, len(loadData.Tracks), playlist.Name)
+		}
+
+		e.CreateMessage(discord.MessageCreate{
+			Embeds: []discord.Embed{{Description: description}},
+		})
 	}
 
+	utils.AutoRemove(e)
+	return nil
+}
+
+func (c *Commands) RemoveFromPlaylist(data discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
+	var (
+		trackId = data.Int("track")
+	)
+
+	err := c.Db.RemoveTrackFromPlaylist(e.Ctx, trackId, e.User().ID)
+	if err != nil {
+		return err
+	}
+	e.CreateMessage(discord.MessageCreate{
+		Embeds: []discord.Embed{{
+			Description: "Track removed from playlist"}},
+	})
 	utils.AutoRemove(e)
 	return nil
 }

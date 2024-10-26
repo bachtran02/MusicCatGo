@@ -124,8 +124,8 @@ var music = discord.SlashCommandCreate{
 			Name:        "playlist",
 			Description: "Add & play your saved playlists",
 			Options: []discord.ApplicationCommandOption{
-				discord.ApplicationCommandOptionString{
-					Name:         "playlist_name",
+				discord.ApplicationCommandOptionInt{
+					Name:         "playlist",
 					Description:  "Playlist name",
 					Required:     true,
 					Autocomplete: true,

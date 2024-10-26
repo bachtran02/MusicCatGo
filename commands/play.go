@@ -46,7 +46,7 @@ type UserData struct {
 }
 
 type PlayOpts struct {
-	Query    string
+	Query    interface{}
 	Type     SearchType
 	PlayNext OptBool
 	Loop     OptBool
@@ -198,21 +198,14 @@ func SearchLavalink(query string, c *Commands, ctx context.Context) (*lavalink.L
 	return result, nil
 }
 
-func SearchPlaylist(playlistName string, c *Commands, userId snowflake.ID, ctx context.Context) (*lavalink.LoadResult, error) {
+func SearchPlaylist(playlistId int, c *Commands, userId snowflake.ID, ctx context.Context) (*lavalink.LoadResult, error) {
 
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
-	playlists, err := c.Db.SearchPlaylist(ctx, userId, playlistName, 1)
-	if err != nil {
-		return nil, err
-	}
-
-	playlistId := playlists[0].ID
-
 	dbPlaylist, dbTracks, err := c.Db.GetPlaylist(ctx, playlistId)
 	if err != nil {
-		return nil, fmt.Errorf("failed to load tracks from playlist with id '%d': %w", playlistId, err)
+		return nil, err
 	}
 
 	playlist := lavalink.Playlist{
@@ -233,16 +226,24 @@ func SearchPlaylist(playlistName string, c *Commands, userId snowflake.ID, ctx c
 	}, nil
 }
 
-func SearchQuery(query string, searchType SearchType, c *Commands, userId snowflake.ID, ctx context.Context) (*lavalink.LoadResult, error) {
-
+func SearchQuery(query interface{}, searchType SearchType, c *Commands, userId snowflake.ID, ctx context.Context) (*lavalink.LoadResult, error) {
 	switch searchType {
 	case LavalinkSearch:
-		return SearchLavalink(query, c, ctx)
+		q, ok := query.(string)
+		if !ok {
+			return nil, fmt.Errorf("query should be a string for Lavalink search, got %T", query)
+		}
+		return SearchLavalink(q, c, ctx)
 
 	case PlaylistSearch:
-		return SearchPlaylist(query, c, userId, ctx)
+		q, ok := query.(int)
+		if !ok {
+			return nil, fmt.Errorf("query should be an int for Playlist search, got %T", query)
+		}
+		return SearchPlaylist(q, c, userId, ctx)
+	default:
+		return nil, fmt.Errorf("unknown search type: %v", searchType)
 	}
-	return nil, fmt.Errorf("unknown search type")
 }
 
 func _Play(playOpts PlayOpts, e *handler.CommandEvent, c *Commands) error {
@@ -255,6 +256,10 @@ func _Play(playOpts PlayOpts, e *handler.CommandEvent, c *Commands) error {
 
 	result, err := SearchQuery(query, searchType, c, e.User().ID, e.Ctx)
 	if err != nil {
+		_, err = e.CreateFollowupMessage(discord.MessageCreate{
+			Content: err.Error(),
+		})
+		utils.AutoRemove(e)
 		return err
 	}
 
@@ -439,7 +444,7 @@ func (cmd *Commands) PlayPlaylist(data discord.SlashCommandInteractionData, even
 
 	return _Play(
 		PlayOpts{
-			Query:    data.String("playlist_name"),
+			Query:    data.Int("playlist"),
 			Type:     PlaylistSearch,
 			PlayNext: next,
 			Loop:     loop,

@@ -9,8 +9,10 @@ CREATE TABLE IF NOT EXISTS playlists
 
 CREATE TABLE IF NOT EXISTS playlist_tracks
 (
-    id          BIGSERIAL   PRIMARY KEY,
-    playlist_id BIGINT      NOT NULL REFERENCES playlists (id) ON DELETE CASCADE,
-    track       JSONB       NOT NULL,
-    added_at    TIMESTAMP   DEFAULT CURRENT_TIMESTAMP
+    id          BIGSERIAL       PRIMARY KEY,
+    playlist_id BIGINT          NOT NULL REFERENCES playlists (id) ON DELETE CASCADE,
+    track_title VARCHAR(255)    NOT NULL,
+    track       JSONB           NOT NULL,
+    added_at    TIMESTAMP       DEFAULT CURRENT_TIMESTAMP,
+    added_by    BIGINT          NOT NULL
 );
