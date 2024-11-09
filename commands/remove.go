@@ -16,7 +16,8 @@ func (c *Commands) RemoveQueueTrackAutocomplete(e *handler.AutocompleteEvent) er
 	}
 
 	choices := make([]discord.AutocompleteChoice, 0)
-	for i, track := range queue[:20] { // can only remove one of next 20 tracks
+	limit := min(20, len(queue)) // can only remove one of next 20 tracks
+	for i, track := range queue[:limit] {
 		choices = append(choices, discord.AutocompleteChoiceInt{
 			Name:  fmt.Sprintf("%s - %s", track.Info.Title, track.Info.Author),
 			Value: i,
