@@ -2,7 +2,6 @@ package commands
 
 import (
 	"MusicCatGo/musicbot"
-	"MusicCatGo/utils"
 	"context"
 	"time"
 
@@ -40,6 +39,6 @@ func (c *Commands) Pause(_ discord.SlashCommandInteractionData, e *handler.Comma
 	e.CreateMessage(discord.MessageCreate{
 		Embeds: []discord.Embed{{Description: "⏸️ Paused player"}},
 	})
-	utils.AutoRemove(e)
+	musicbot.AutoRemove(e)
 	return nil
 }

@@ -2,7 +2,6 @@ package commands
 
 import (
 	"MusicCatGo/musicbot"
-	"MusicCatGo/utils"
 
 	"github.com/disgoorg/disgo/discord"
 	"github.com/disgoorg/disgo/handler"
@@ -45,6 +44,6 @@ func (c *Commands) Loop(data discord.SlashCommandInteractionData, e *handler.Com
 		Embeds: []discord.Embed{{Description: body}},
 	})
 
-	utils.AutoRemove(e)
+	musicbot.AutoRemove(e)
 	return nil
 }

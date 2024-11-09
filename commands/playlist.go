@@ -1,7 +1,7 @@
 package commands
 
 import (
-	"MusicCatGo/utils"
+	"MusicCatGo/musicbot"
 	"fmt"
 	"log/slog"
 
@@ -12,7 +12,7 @@ import (
 )
 
 var playlist = discord.SlashCommandCreate{
-	Name:        "playlist",
+	Name:        "list",
 	Description: "playlist commands",
 	Options: []discord.ApplicationCommandOption{
 		discord.ApplicationCommandOptionSubCommand{
@@ -140,7 +140,7 @@ func (c *Commands) PlaylistTrackAutocomplete(e *handler.AutocompleteEvent) error
 	return e.AutocompleteResult(choices)
 }
 
-func (c *Commands) AddToPlaylistAutocomplete(e *handler.AutocompleteEvent) error {
+func (c *Commands) AddPlaylistTrackAutocomplete(e *handler.AutocompleteEvent) error {
 
 	focusedOption := e.Data.Focused()
 	switch focusedOption.Name {
@@ -152,7 +152,7 @@ func (c *Commands) AddToPlaylistAutocomplete(e *handler.AutocompleteEvent) error
 	return nil
 }
 
-func (c *Commands) RemoveFromPlaylistAutocomplete(e *handler.AutocompleteEvent) error {
+func (c *Commands) RemovePlaylistTrackAutocomplete(e *handler.AutocompleteEvent) error {
 
 	focusedOption := e.Data.Focused()
 	switch focusedOption.Name {
@@ -177,7 +177,7 @@ func (c *Commands) CreatePlaylist(data discord.SlashCommandInteractionData, e *h
 	e.CreateMessage(discord.MessageCreate{
 		Embeds: []discord.Embed{{Description: fmt.Sprintf("📋 Playlist `%s` created", playlistName)}},
 	})
-	utils.AutoRemove(e)
+	musicbot.AutoRemove(e)
 	return nil
 }
 
@@ -194,7 +194,7 @@ func (c *Commands) DeletePlaylist(data discord.SlashCommandInteractionData, e *h
 	e.CreateMessage(discord.MessageCreate{
 		Embeds: []discord.Embed{{Description: "📋 Playlist deleted"}},
 	})
-	utils.AutoRemove(e)
+	musicbot.AutoRemove(e)
 	return nil
 }
 
@@ -231,7 +231,7 @@ func (c *Commands) ListPlaylists(data discord.SlashCommandInteractionData, e *ha
 	})
 }
 
-func (c *Commands) AddToPlaylist(data discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
+func (c *Commands) AddPlaylistTrack(data discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
 	var (
 		playlistID = data.Int("playlist")
 		query      = data.String("query")
@@ -295,11 +295,11 @@ func (c *Commands) AddToPlaylist(data discord.SlashCommandInteractionData, e *ha
 		})
 	}
 
-	utils.AutoRemove(e)
+	musicbot.AutoRemove(e)
 	return nil
 }
 
-func (c *Commands) RemoveFromPlaylist(data discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
+func (c *Commands) RemovePlaylistTrack(data discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
 	var (
 		trackId = data.Int("track")
 	)
@@ -312,6 +312,6 @@ func (c *Commands) RemoveFromPlaylist(data discord.SlashCommandInteractionData, 
 		Embeds: []discord.Embed{{
 			Description: "Track removed from playlist"}},
 	})
-	utils.AutoRemove(e)
+	musicbot.AutoRemove(e)
 	return nil
 }

@@ -2,7 +2,6 @@ package commands
 
 import (
 	"MusicCatGo/musicbot"
-	"MusicCatGo/utils"
 	"context"
 	"fmt"
 	"time"
@@ -51,6 +50,6 @@ func (c *Commands) Skip(_ discord.SlashCommandInteractionData, e *handler.Comman
 		Embeds: []discord.Embed{{Description: fmt.Sprintf(
 			"⏭️ Track skipped: [%s](%s)", curTrack.Info.Title, *curTrack.Info.URI)}},
 	})
-	utils.AutoRemove(e)
+	musicbot.AutoRemove(e)
 	return nil
 }

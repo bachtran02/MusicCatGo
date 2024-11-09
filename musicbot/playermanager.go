@@ -114,6 +114,20 @@ func (q *PlayerManager) Previous(guildID snowflake.ID) (lavalink.Track, bool) {
 	return track, true
 }
 
+func (q *PlayerManager) RemoveTrack(guildID snowflake.ID, trackIndex int) (lavalink.Track, bool) {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+
+	state, ok := q.states[guildID]
+	if !ok {
+		return lavalink.Track{}, false
+	}
+
+	removedTrack := state.tracks[trackIndex]
+	state.tracks = append(state.tracks[:trackIndex], state.tracks[trackIndex+1:]...)
+	return removedTrack, true
+}
+
 func (q *PlayerManager) Queue(guildID snowflake.ID) ([]lavalink.Track, bool) {
 	q.mu.Lock()
 	defer q.mu.Unlock()

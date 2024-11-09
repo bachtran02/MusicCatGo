@@ -2,7 +2,6 @@ package commands
 
 import (
 	"MusicCatGo/musicbot"
-	"MusicCatGo/utils"
 	"context"
 	"time"
 
@@ -35,6 +34,6 @@ func (c *Commands) Stop(_ discord.SlashCommandInteractionData, e *handler.Comman
 	e.CreateMessage(discord.MessageCreate{
 		Embeds: []discord.Embed{{Description: "⏹️ Stopped playing"}},
 	})
-	utils.AutoRemove(e)
+	musicbot.AutoRemove(e)
 	return nil
 }

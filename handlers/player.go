@@ -3,7 +3,6 @@ package handlers
 import (
 	"MusicCatGo/commands"
 	"MusicCatGo/musicbot"
-	"MusicCatGo/utils"
 	"context"
 
 	"github.com/disgoorg/disgo/discord"
@@ -100,30 +99,30 @@ func createButtons(state *musicbot.PlayerState) []discord.ButtonComponent {
 		repeatButton    discord.ButtonComponent
 		shuffleButton   discord.ButtonComponent
 
-		playPreviousButton = discord.NewSecondaryButton("", string(PlayPrevious)).WithEmoji(discord.ComponentEmoji{ID: snowflake.ID(utils.PLAYER_PREVIOUS_EMOJI_ID)})
-		playNextButton     = discord.NewSecondaryButton("", string(PlayNext)).WithEmoji(discord.ComponentEmoji{ID: snowflake.ID(utils.PLAYER_NEXT_EMOJI_ID)})
-		stopButton         = discord.NewSecondaryButton("", string(StopPlayer)).WithEmoji(discord.ComponentEmoji{ID: snowflake.ID(utils.STOP_PLAYER_EMOJI_ID)})
+		playPreviousButton = discord.NewSecondaryButton("", string(PlayPrevious)).WithEmoji(discord.ComponentEmoji{ID: snowflake.ID(musicbot.PLAYER_PREVIOUS_EMOJI_ID)})
+		playNextButton     = discord.NewSecondaryButton("", string(PlayNext)).WithEmoji(discord.ComponentEmoji{ID: snowflake.ID(musicbot.PLAYER_NEXT_EMOJI_ID)})
+		stopButton         = discord.NewSecondaryButton("", string(StopPlayer)).WithEmoji(discord.ComponentEmoji{ID: snowflake.ID(musicbot.STOP_PLAYER_EMOJI_ID)})
 	)
 
 	if state.Paused() {
-		playPauseButton = discord.NewSecondaryButton("", string(ResumePlayer)).WithEmoji(discord.ComponentEmoji{ID: snowflake.ID(utils.RESUME_PLAYER_EMOJI_ID)})
+		playPauseButton = discord.NewSecondaryButton("", string(ResumePlayer)).WithEmoji(discord.ComponentEmoji{ID: snowflake.ID(musicbot.RESUME_PLAYER_EMOJI_ID)})
 	} else {
-		playPauseButton = discord.NewSecondaryButton("", string(PausePlayer)).WithEmoji(discord.ComponentEmoji{ID: snowflake.ID(utils.PAUSE_PLAYER_EMOJI_ID)})
+		playPauseButton = discord.NewSecondaryButton("", string(PausePlayer)).WithEmoji(discord.ComponentEmoji{ID: snowflake.ID(musicbot.PAUSE_PLAYER_EMOJI_ID)})
 	}
 
 	switch state.Loop() {
 	case musicbot.LoopNone:
-		repeatButton = discord.NewSecondaryButton("", string(LoopQueue)).WithEmoji(discord.ComponentEmoji{ID: snowflake.ID(utils.LOOP_OFF_EMOJI_ID)})
+		repeatButton = discord.NewSecondaryButton("", string(LoopQueue)).WithEmoji(discord.ComponentEmoji{ID: snowflake.ID(musicbot.LOOP_OFF_EMOJI_ID)})
 	case musicbot.LoopQueue:
-		repeatButton = discord.NewSecondaryButton("", string(LoopTrack)).WithEmoji(discord.ComponentEmoji{ID: snowflake.ID(utils.LOOP_QUEUE_EMOJI_ID)})
+		repeatButton = discord.NewSecondaryButton("", string(LoopTrack)).WithEmoji(discord.ComponentEmoji{ID: snowflake.ID(musicbot.LOOP_QUEUE_EMOJI_ID)})
 	case musicbot.LoopTrack:
-		repeatButton = discord.NewSecondaryButton("", string(LoopOff)).WithEmoji(discord.ComponentEmoji{ID: snowflake.ID(utils.LOOP_TRACK_EMOJI_ID)})
+		repeatButton = discord.NewSecondaryButton("", string(LoopOff)).WithEmoji(discord.ComponentEmoji{ID: snowflake.ID(musicbot.LOOP_TRACK_EMOJI_ID)})
 	}
 
 	if state.Shuffle() {
-		shuffleButton = discord.NewSecondaryButton("", string(ShuffleOff)).WithEmoji(discord.ComponentEmoji{ID: snowflake.ID(utils.SHUFFLE_ON_EMOJI_ID)})
+		shuffleButton = discord.NewSecondaryButton("", string(ShuffleOff)).WithEmoji(discord.ComponentEmoji{ID: snowflake.ID(musicbot.SHUFFLE_ON_EMOJI_ID)})
 	} else {
-		shuffleButton = discord.NewSecondaryButton("", string(ShuffleOn)).WithEmoji(discord.ComponentEmoji{ID: snowflake.ID(utils.SHUFFLE_OFF_EMOJI_ID)})
+		shuffleButton = discord.NewSecondaryButton("", string(ShuffleOn)).WithEmoji(discord.ComponentEmoji{ID: snowflake.ID(musicbot.SHUFFLE_OFF_EMOJI_ID)})
 	}
 
 	return []discord.ButtonComponent{
@@ -143,7 +142,7 @@ func createEmbed(track lavalink.Track) discord.EmbedBuilder {
 	if track.Info.IsStream {
 		playtime = "LIVE"
 	} else {
-		playtime = utils.FormatTime(track.Info.Length)
+		playtime = musicbot.FormatTime(track.Info.Length)
 	}
 
 	return *discord.NewEmbedBuilder().

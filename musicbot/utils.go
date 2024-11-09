@@ -1,8 +1,9 @@
-package utils
+package musicbot
 
 import (
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/disgoorg/disgo/handler"
@@ -31,15 +32,6 @@ const (
 var (
 	resumePlayerEmoji string = "<:mc_resume:" + strconv.Itoa(RESUME_PLAYER_EMOJI_ID) + ">"
 	pausePlayerEmoji  string = "<:mc_pause:" + strconv.Itoa(PAUSE_PLAYER_EMOJI_ID) + ">"
-	// stopPlayerEmoji   string = "<:mc_stop:" + strconv.Itoa(stopPlayerEmojiID) + ">"
-	// playPreviousEmoji string = "<:mc_previous:" + strconv.Itoa(playPreviousEmojiID) + ">"
-	// playNextEmoji     string = "<:mc_next:" + strconv.Itoa(playNextEmojiID) + ">"
-	// radioButtonEmoji  string = "<:mc_radio_button:" + strconv.Itoa(emojiRadioButtonID) + ">"
-	// loopOffEmoji      string = "<:mc_loop_off:" + strconv.Itoa(emojiLoopOffID) + ">"
-	// loopTrackEmoji    string = "<:mc_loop_track:" + strconv.Itoa(emojiLoopTrackID) + ">"
-	// loopQueueEmoji    string = "<:mc_loop_queue:" + strconv.Itoa(emojiLoopQueueID) + ">"
-	// shuffleOffEmoji   string = "<:mc_shuffle_off:" + strconv.Itoa(emojiShuffleOffID) + ">"
-	// shuffleOnEmoji    string = "<:mc_shuffle_on:" + strconv.Itoa(emojiShuffleOnID) + ">"
 )
 
 func AutoRemove(e *handler.CommandEvent) {
@@ -113,4 +105,51 @@ func ProgressBar(percent float32) string {
 		}
 	}
 	return string(bar)
+}
+
+func ParseTime(timeStr string) (int, int, int, error) {
+	// Split the time string by ":"
+	parts := strings.Split(timeStr, ":")
+
+	var hours, minutes, seconds int
+	var err error
+
+	// Handle "HH:MM:SS" format
+	if len(parts) == 3 {
+		hours, err = strconv.Atoi(parts[0])
+		if err != nil {
+			return 0, 0, 0, err
+		}
+		minutes, err = strconv.Atoi(parts[1])
+		if err != nil {
+			return 0, 0, 0, err
+		}
+		seconds, err = strconv.Atoi(parts[2])
+		if err != nil {
+			return 0, 0, 0, err
+		}
+	} else if len(parts) == 2 { // Handle "MM:SS" format
+		minutes, err = strconv.Atoi(parts[0])
+		if err != nil {
+			return 0, 0, 0, err
+		}
+		seconds, err = strconv.Atoi(parts[1])
+		if err != nil {
+			return 0, 0, 0, err
+		}
+	} else { // Invalid format
+		return 0, 0, 0, fmt.Errorf("invalid time format")
+	}
+
+	// Normalize seconds and minutes
+	if seconds >= 60 {
+		minutes += seconds / 60
+		seconds = seconds % 60
+	}
+	if minutes >= 60 {
+		hours += minutes / 60
+		minutes = minutes % 60
+	}
+
+	return hours, minutes, seconds, nil
 }

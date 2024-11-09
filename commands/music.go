@@ -159,6 +159,10 @@ var music = discord.SlashCommandCreate{
 			Description: "Pause player",
 		},
 		discord.ApplicationCommandOptionSubCommand{
+			Name:        "now",
+			Description: "Current track",
+		},
+		discord.ApplicationCommandOptionSubCommand{
 			Name:        "stop",
 			Description: "Stop player",
 		},
@@ -179,6 +183,29 @@ var music = discord.SlashCommandCreate{
 					Description: "Loop mode",
 					Required:    true,
 					Choices:     loopModeChoices,
+				},
+			},
+		},
+		discord.ApplicationCommandOptionSubCommand{
+			Name:        "seek",
+			Description: "Seek player to a position",
+			Options: []discord.ApplicationCommandOption{
+				discord.ApplicationCommandOptionString{
+					Name:        "position",
+					Description: "Postion to seek to (format: [HH:MM:SS] or [MM:SS])",
+					Required:    true,
+				},
+			},
+		},
+		discord.ApplicationCommandOptionSubCommand{
+			Name:        "remove",
+			Description: "Remove track from queue",
+			Options: []discord.ApplicationCommandOption{
+				discord.ApplicationCommandOptionInt{
+					Name:         "track",
+					Description:  "Track to remove from queue",
+					Required:     true,
+					Autocomplete: true,
 				},
 			},
 		},

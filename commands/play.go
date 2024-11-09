@@ -2,7 +2,6 @@ package commands
 
 import (
 	"MusicCatGo/musicbot"
-	"MusicCatGo/utils"
 	"context"
 	"errors"
 	"fmt"
@@ -170,7 +169,7 @@ func (c *Commands) SearchAutocomplete(e *handler.AutocompleteEvent) error {
 		if tracks, ok := result.Data.(lavalink.Search); ok {
 			for _, track := range tracks[:min(len(tracks), 20)] {
 				choices = append(choices, discord.AutocompleteChoiceString{
-					Name:  fmt.Sprintf("🎬 %s [%s]", utils.Trim(track.Info.Title, 60), utils.Trim(track.Info.Author, 20)),
+					Name:  fmt.Sprintf("🎬 %s [%s]", musicbot.Trim(track.Info.Title, 60), musicbot.Trim(track.Info.Author, 20)),
 					Value: *track.Info.URI,
 				})
 			}
@@ -259,7 +258,7 @@ func _Play(playOpts PlayOpts, e *handler.CommandEvent, c *Commands) error {
 		_, err = e.CreateFollowupMessage(discord.MessageCreate{
 			Content: err.Error(),
 		})
-		utils.AutoRemove(e)
+		musicbot.AutoRemove(e)
 		return err
 	}
 
@@ -291,7 +290,7 @@ func _Play(playOpts PlayOpts, e *handler.CommandEvent, c *Commands) error {
 		if track.Info.IsStream {
 			playtime = "LIVE"
 		} else {
-			playtime = utils.FormatTime(track.Info.Length)
+			playtime = musicbot.FormatTime(track.Info.Length)
 		}
 
 		embedBuilder = *discord.NewEmbedBuilder().
@@ -409,7 +408,7 @@ func _Play(playOpts PlayOpts, e *handler.CommandEvent, c *Commands) error {
 		}
 	}
 
-	utils.AutoRemove(e)
+	musicbot.AutoRemove(e)
 	return nil
 }
 

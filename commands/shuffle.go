@@ -2,7 +2,6 @@ package commands
 
 import (
 	"MusicCatGo/musicbot"
-	"MusicCatGo/utils"
 
 	"github.com/disgoorg/disgo/discord"
 	"github.com/disgoorg/disgo/handler"
@@ -39,7 +38,6 @@ func (c *Commands) Shuffle(_ discord.SlashCommandInteractionData, e *handler.Com
 	e.CreateMessage(discord.MessageCreate{
 		Embeds: []discord.Embed{{Description: body}},
 	})
-
-	utils.AutoRemove(e)
+	musicbot.AutoRemove(e)
 	return nil
 }

@@ -8,7 +8,7 @@ import (
 	"github.com/disgoorg/disgo/handler"
 )
 
-func (cmd *Commands) Queue(data discord.SlashCommandInteractionData, event *handler.CommandEvent) error {
+func (cmd *Commands) Now(data discord.SlashCommandInteractionData, event *handler.CommandEvent) error {
 
 	player := cmd.Lavalink.Player(*event.GuildID())
 
@@ -27,16 +27,16 @@ func (cmd *Commands) Queue(data discord.SlashCommandInteractionData, event *hand
 		track.Info.Title, *track.Info.URI, track.Info.Author, musicbot.PlayerBar(player), userData.Requester)
 
 	if tracks, ok := cmd.PlayerManager.Queue(*event.GuildID()); ok {
-		content += fmt.Sprintf("\n**Up next:** `%d tracks`", len(tracks))
-		for i, track := range tracks[:10] {
+		content += "\n**Up next:**"
+		for _, track := range tracks[:1] {
 			var Playtime string
 			if track.Info.IsStream {
 				Playtime = "`LIVE`"
 			} else {
 				Playtime = musicbot.FormatTime(track.Info.Length)
 			}
-			content += fmt.Sprintf("\n%d. [%s](%s) `%s`",
-				i+1, track.Info.Title, *track.Info.URI, Playtime)
+			content += fmt.Sprintf("\n[%s](%s) `%s`",
+				track.Info.Title, *track.Info.URI, Playtime)
 
 			if track.Info.SourceName == "deezer" || track.Info.SourceName == "spotify" {
 				content += " " + track.Info.Author
@@ -45,7 +45,7 @@ func (cmd *Commands) Queue(data discord.SlashCommandInteractionData, event *hand
 	}
 
 	embed := discord.NewEmbedBuilder().
-		SetTitle("Queue").
+		SetTitle("Current").
 		SetDescription(content).
 		SetThumbnail(*track.Info.ArtworkURL)
 

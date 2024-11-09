@@ -2,7 +2,6 @@ package commands
 
 import (
 	"MusicCatGo/musicbot"
-	"MusicCatGo/utils"
 	"context"
 	"time"
 
@@ -41,6 +40,6 @@ func (c *Commands) Resume(_ discord.SlashCommandInteractionData, e *handler.Comm
 		Embeds: []discord.Embed{{Description: "▶️ Resumed player"}},
 	})
 
-	utils.AutoRemove(e)
+	musicbot.AutoRemove(e)
 	return nil
 }
