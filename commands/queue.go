@@ -28,7 +28,8 @@ func (cmd *Commands) Queue(data discord.SlashCommandInteractionData, event *hand
 
 	if tracks, ok := cmd.PlayerManager.Queue(*event.GuildID()); ok {
 		content += fmt.Sprintf("\n**Up next:** `%d tracks`", len(tracks))
-		for i, track := range tracks[:10] {
+		limit := min(10, len(tracks))
+		for i, track := range tracks[:limit] {
 			var Playtime string
 			if track.Info.IsStream {
 				Playtime = "`LIVE`"
