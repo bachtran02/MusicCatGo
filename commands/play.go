@@ -247,6 +247,9 @@ func SearchQuery(query interface{}, searchType SearchType, c *Commands, userId s
 
 func _Play(playOpts PlayOpts, e *handler.CommandEvent, c *Commands) error {
 
+	// delete response message
+	defer musicbot.AutoRemove(e)
+
 	var (
 		query      = playOpts.Query
 		searchType = playOpts.Type
@@ -258,7 +261,6 @@ func _Play(playOpts PlayOpts, e *handler.CommandEvent, c *Commands) error {
 		_, err = e.CreateFollowupMessage(discord.MessageCreate{
 			Content: err.Error(),
 		})
-		musicbot.AutoRemove(e)
 		return err
 	}
 
@@ -347,12 +349,12 @@ func _Play(playOpts PlayOpts, e *handler.CommandEvent, c *Commands) error {
 
 	case lavalink.Empty:
 		_, err = e.UpdateInteractionResponse(discord.MessageUpdate{
-			Content: json.Ptr("No matches found"),
+			Content: json.Ptr("No matches found for search query."),
 		})
 		return err
 	case lavalink.Exception:
 		_, err = e.UpdateInteractionResponse(discord.MessageUpdate{
-			Content: json.Ptr(fmt.Sprintf("Failed to load tracks: %s", loadData.Error())),
+			Content: json.Ptr(fmt.Sprintf("Failed to load tracks: `%s`", loadData.Error())),
 		})
 		return err
 	}
@@ -407,8 +409,6 @@ func _Play(playOpts PlayOpts, e *handler.CommandEvent, c *Commands) error {
 			return err
 		}
 	}
-
-	musicbot.AutoRemove(e)
 	return nil
 }
 
