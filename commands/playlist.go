@@ -112,17 +112,14 @@ func (c *Commands) PlaylistAutocomplete(e *handler.AutocompleteEvent) error {
 
 func (c *Commands) PlaylistTrackAutocomplete(e *handler.AutocompleteEvent) error {
 	var (
-		limit = 10
-		query = e.Data.String("playlist")
+		trackLimit = 10
+		playlistId = e.Data.Int("playlist")
 	)
 
-	playlists, err := c.Db.SearchPlaylist(e.Ctx, e.User().ID, query, limit)
-	if err != nil || len(playlists) == 0 {
+	/* playlist not selected yet or invalid */
+	if playlistId <= 0 {
 		return e.AutocompleteResult(nil)
 	}
-
-	// Get ID of top matched playlist
-	playlistId := playlists[0].ID
 
 	// Fetch playlist info
 	_, playlistTracks, err := c.Db.GetPlaylist(e.Ctx, playlistId)
@@ -131,7 +128,8 @@ func (c *Commands) PlaylistTrackAutocomplete(e *handler.AutocompleteEvent) error
 	}
 
 	choices := make([]discord.AutocompleteChoice, 0)
-	for _, playlistTrack := range playlistTracks {
+	numChoices := min(len(playlistTracks), trackLimit)
+	for _, playlistTrack := range playlistTracks[:numChoices] {
 		choices = append(choices, discord.AutocompleteChoiceInt{
 			Name:  playlistTrack.TrackTitle,
 			Value: playlistTrack.ID,
@@ -153,7 +151,6 @@ func (c *Commands) AddPlaylistTrackAutocomplete(e *handler.AutocompleteEvent) er
 }
 
 func (c *Commands) RemovePlaylistTrackAutocomplete(e *handler.AutocompleteEvent) error {
-
 	focusedOption := e.Data.Focused()
 	switch focusedOption.Name {
 	case "playlist":
