@@ -245,18 +245,63 @@ func SearchQuery(query interface{}, searchType SearchType, c *Commands, userId s
 	}
 }
 
+func buildTrackEmbed(track lavalink.Track, requester snowflake.ID) discord.Embed {
+	var playtime string
+	if track.Info.IsStream {
+		playtime = "LIVE"
+	} else {
+		playtime = musicbot.FormatTime(track.Info.Length)
+	}
+
+	return discord.NewEmbedBuilder().
+		SetTitle("Track added").
+		SetDescription(fmt.Sprintf("[%s](%s)\n%s `%s`\n\n<@%s>",
+			track.Info.Title, *track.Info.URI, track.Info.Author,
+			playtime, requester)).
+		SetThumbnail(*track.Info.ArtworkURL).
+		Build()
+}
+
+func buildPlaylistEmbed(playlist lavalink.Playlist, requester snowflake.ID) discord.Embed {
+	var (
+		description  string
+		lavasrcInfo  lavasrc.PlaylistInfo
+		thumbnailUrl = ""
+		playlistType = "playlist"
+		numTracks    = len(playlist.Tracks)
+	)
+
+	var _ = playlist.PluginInfo.Unmarshal(&lavasrcInfo)
+
+	if lavasrcInfo.Type == "" {
+		description = fmt.Sprintf("%s - %d tracks\n\n<@%s>",
+			playlist.Info.Name, numTracks, requester)
+	} else {
+		playlistType = string(lavasrcInfo.Type)
+		thumbnailUrl = lavasrcInfo.ArtworkURL
+		switch lavasrcInfo.Type {
+		case lavasrc.PlaylistTypeArtist:
+			description = fmt.Sprintf("[%s](%s) - `%d tracks`\n\n<@%s>",
+				lavasrcInfo.Author, lavasrcInfo.URL, numTracks, requester)
+		case lavasrc.PlaylistTypePlaylist, lavasrc.PlaylistTypeAlbum:
+			description = fmt.Sprintf("[%s](%s) `%d track(s)`\n%s\n\n<@%s>",
+				playlist.Info.Name, lavasrcInfo.URL, numTracks, lavasrcInfo.Author, requester)
+		}
+	}
+
+	return discord.NewEmbedBuilder().
+		SetTitle(strings.ToUpper(string(playlistType[0])) + playlistType[1:] + " added").
+		SetDescription(description).
+		SetThumbnail(thumbnailUrl).
+		Build()
+}
+
 func _Play(playOpts PlayOpts, e *handler.CommandEvent, c *Commands) error {
 
 	// delete response message
 	defer musicbot.AutoRemove(e)
 
-	var (
-		query      = playOpts.Query
-		searchType = playOpts.Type
-		loop       = musicbot.LoopNone
-	)
-
-	result, err := SearchQuery(query, searchType, c, e.User().ID, e.Ctx)
+	result, err := SearchQuery(playOpts.Query, playOpts.Type, c, e.User().ID, e.Ctx)
 	if err != nil {
 		_, err = e.CreateFollowupMessage(discord.MessageCreate{
 			Content: err.Error(),
@@ -266,51 +311,30 @@ func _Play(playOpts PlayOpts, e *handler.CommandEvent, c *Commands) error {
 
 	var (
 		tracks   []lavalink.Track
+		embed    discord.Embed
 		userData = UserData{
 			Requester: e.User().ID,
 		}
-		embedBuilder discord.EmbedBuilder
+		loop = musicbot.LoopNone
 	)
 
 	switch loadData := result.Data.(type) {
-	case lavalink.Track, lavalink.Search:
-		var (
-			track    lavalink.Track
-			playtime string
-		)
-
+	case lavalink.Track:
+		tracks = append(tracks, loadData)
+		embed = buildTrackEmbed(loadData, userData.Requester)
 		if playOpts.Loop == OptTrue {
 			loop = musicbot.LoopTrack
 		}
 
-		if t, ok := loadData.(lavalink.Track); ok {
-			track, tracks = t, append(tracks, t)
-		} else if t, ok := loadData.(lavalink.Search); ok {
-			track, tracks = t[0], append(tracks, t[0])
+	case lavalink.Search:
+		track := loadData[0]
+		tracks = append(tracks, track)
+		embed = buildTrackEmbed(track, userData.Requester)
+		if playOpts.Loop == OptTrue {
+			loop = musicbot.LoopTrack
 		}
-
-		if track.Info.IsStream {
-			playtime = "LIVE"
-		} else {
-			playtime = musicbot.FormatTime(track.Info.Length)
-		}
-
-		embedBuilder = *discord.NewEmbedBuilder().
-			SetTitle("Track added").
-			SetDescription(fmt.Sprintf("[%s](%s)\n%s `%s`\n\n<@%s>",
-				track.Info.Title, *track.Info.URI, track.Info.Author,
-				playtime, userData.Requester)).
-			SetThumbnail(*track.Info.ArtworkURL)
 
 	case lavalink.Playlist:
-		var (
-			description  string
-			lavasrcInfo  lavasrc.PlaylistInfo
-			thumbnailUrl = ""
-			playlistType = "playlist"
-			numTracks    = len(loadData.Tracks)
-		)
-
 		if playOpts.Shuffle != OptFalse {
 			rand.Shuffle(len(loadData.Tracks), func(i, j int) {
 				loadData.Tracks[i], loadData.Tracks[j] = loadData.Tracks[j], loadData.Tracks[i]
@@ -319,33 +343,9 @@ func _Play(playOpts PlayOpts, e *handler.CommandEvent, c *Commands) error {
 		if playOpts.Loop == OptTrue {
 			loop = musicbot.LoopQueue
 		}
-
 		tracks = append(tracks, loadData.Tracks...)
 		userData.PlaylistName = loadData.Info.Name
-		// userData.PlaylistURL = query
-
-		var _ = loadData.PluginInfo.Unmarshal(&lavasrcInfo)
-
-		if lavasrcInfo.Type == "" {
-			description = fmt.Sprintf("%s - %d tracks\n\n<@%s>",
-				loadData.Info.Name, numTracks, userData.Requester)
-		} else {
-			playlistType = string(lavasrcInfo.Type)
-			thumbnailUrl = lavasrcInfo.ArtworkURL
-			switch lavasrcInfo.Type {
-			case lavasrc.PlaylistTypeArtist:
-				description = fmt.Sprintf("[%s](%s) - `%d tracks`\n\n<@%s>",
-					lavasrcInfo.Author, lavasrcInfo.URL, numTracks, userData.Requester)
-			case lavasrc.PlaylistTypePlaylist, lavasrc.PlaylistTypeAlbum:
-				description = fmt.Sprintf("[%s](%s) `%d track(s)`\n%s\n\n<@%s>",
-					loadData.Info.Name, lavasrcInfo.URL, numTracks, lavasrcInfo.Author, userData.Requester)
-			}
-		}
-
-		embedBuilder = *discord.NewEmbedBuilder().
-			SetTitle(strings.ToUpper(string(playlistType[0])) + playlistType[1:] + " added").
-			SetDescription(description).
-			SetThumbnail(thumbnailUrl)
+		embed = buildPlaylistEmbed(loadData, userData.Requester)
 
 	case lavalink.Empty:
 		_, err = e.UpdateInteractionResponse(discord.MessageUpdate{
@@ -360,7 +360,7 @@ func _Play(playOpts PlayOpts, e *handler.CommandEvent, c *Commands) error {
 	}
 
 	if _, err = e.UpdateInteractionResponse(discord.MessageUpdate{
-		Embeds: &[]discord.Embed{embedBuilder.Build()},
+		Embeds: &[]discord.Embed{embed},
 	}); err != nil {
 		return err
 	}

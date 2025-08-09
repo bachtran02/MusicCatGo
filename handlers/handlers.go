@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"MusicCatGo/commands"
 	"MusicCatGo/musicbot"
 	"context"
 	"fmt"
@@ -47,7 +46,7 @@ func (h *Handlers) OnVoiceStateUpdate(event *events.GuildVoiceStateUpdate) {
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer cancel()
 
-			commands.Stop(&h.Lavalink, &h.PlayerManager, ctx, event.VoiceState.GuildID)
+			h.PlayerManager.Stop(&h.Lavalink, ctx, event.VoiceState.GuildID)
 
 			if err := h.Client.UpdateVoiceState(ctx, event.VoiceState.GuildID, nil, false, false); err != nil {
 				slog.Error("failed to disconnect from voice channel", slog.Any("error", err))
@@ -57,9 +56,9 @@ func (h *Handlers) OnVoiceStateUpdate(event *events.GuildVoiceStateUpdate) {
 			defer cancel()
 
 			if userDeafened {
-				commands.Pause(&h.Lavalink, &h.PlayerManager, ctx, event.VoiceState.GuildID)
+				h.PlayerManager.Pause(&h.Lavalink, ctx, event.VoiceState.GuildID)
 			} else if userUndeafened {
-				commands.Resume(&h.Lavalink, &h.PlayerManager, ctx, event.VoiceState.GuildID)
+				h.PlayerManager.Resume(&h.Lavalink, ctx, event.VoiceState.GuildID)
 			}
 		}
 		return

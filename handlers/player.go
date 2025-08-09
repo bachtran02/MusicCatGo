@@ -37,32 +37,32 @@ func (h *Handlers) OnPlayerInteraction(event *events.ComponentInteractionCreate)
 
 	switch ButtonID(event.ComponentInteraction.ButtonInteractionData().CustomID()) {
 	case PlayNext:
-		commands.Skip(&h.Lavalink, &h.PlayerManager, ctx, *event.GuildID())
+		h.PlayerManager.Skip(&h.Lavalink, ctx, *event.GuildID())
 	case StopPlayer:
-		commands.Stop(&h.Lavalink, &h.PlayerManager, ctx, *event.GuildID())
+		h.PlayerManager.Stop(&h.Lavalink, ctx, *event.GuildID())
 	case ResumePlayer:
-		commands.Resume(&h.Lavalink, &h.PlayerManager, ctx, *event.GuildID())
+		h.PlayerManager.Resume(&h.Lavalink, ctx, *event.GuildID())
 		updatePlayerEmbed(state, event)
 	case PausePlayer:
-		commands.Pause(&h.Lavalink, &h.PlayerManager, ctx, *event.GuildID())
+		h.PlayerManager.Pause(&h.Lavalink, ctx, *event.GuildID())
 		updatePlayerEmbed(state, event)
 	case PlayPrevious:
-		commands.Previous(&h.Lavalink, &h.PlayerManager, ctx, *event.GuildID())
+		h.PlayerManager.PlayPrevious(&h.Lavalink, ctx, *event.GuildID())
 		updatePlayerEmbed(state, event)
 	case ShuffleOn:
-		commands.Shuffle(&h.PlayerManager, *event.GuildID(), musicbot.ShuffleOn)
+		h.PlayerManager.SetShuffle(*event.GuildID(), musicbot.ShuffleOn)
 		updatePlayerEmbed(state, event)
 	case ShuffleOff:
-		commands.Shuffle(&h.PlayerManager, *event.GuildID(), musicbot.ShuffleOff)
+		h.PlayerManager.SetShuffle(*event.GuildID(), musicbot.ShuffleOff)
 		updatePlayerEmbed(state, event)
 	case LoopOff:
-		commands.Loop(&h.PlayerManager, *event.GuildID(), musicbot.LoopNone)
+		h.PlayerManager.SetLoop(*event.GuildID(), musicbot.LoopNone)
 		updatePlayerEmbed(state, event)
 	case LoopTrack:
-		commands.Loop(&h.PlayerManager, *event.GuildID(), musicbot.LoopTrack)
+		h.PlayerManager.SetLoop(*event.GuildID(), musicbot.LoopTrack)
 		updatePlayerEmbed(state, event)
 	case LoopQueue:
-		commands.Loop(&h.PlayerManager, *event.GuildID(), musicbot.LoopQueue)
+		h.PlayerManager.SetLoop(*event.GuildID(), musicbot.LoopQueue)
 		updatePlayerEmbed(state, event)
 	}
 }

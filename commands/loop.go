@@ -5,16 +5,7 @@ import (
 
 	"github.com/disgoorg/disgo/discord"
 	"github.com/disgoorg/disgo/handler"
-	"github.com/disgoorg/snowflake/v2"
 )
-
-func Loop(playerManager *musicbot.PlayerManager, guildId snowflake.ID, loopMode musicbot.LoopMode) error {
-
-	if state, ok := playerManager.GetState(guildId); ok {
-		state.SetLoop(loopMode)
-	}
-	return nil
-}
 
 func (c *Commands) Loop(data discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
 	var (
@@ -22,15 +13,15 @@ func (c *Commands) Loop(data discord.SlashCommandInteractionData, e *handler.Com
 		mode string = data.String("mode")
 	)
 
-	if state, ok := c.PlayerManager.GetState(*e.GuildID()); ok {
+	if _, ok := c.PlayerManager.GetState(*e.GuildID()); ok {
 		if mode == string(musicbot.LoopNone) {
-			state.SetLoop(musicbot.LoopNone)
+			c.PlayerManager.SetLoop(*e.GuildID(), musicbot.LoopNone)
 			body = "⏭️ Disable loop"
 		} else if mode == string(musicbot.LoopTrack) {
-			state.SetLoop(musicbot.LoopTrack)
+			c.PlayerManager.SetLoop(*e.GuildID(), musicbot.LoopTrack)
 			body = "🔂 Enabled Track loop"
 		} else {
-			state.SetLoop(musicbot.LoopQueue)
+			c.PlayerManager.SetLoop(*e.GuildID(), musicbot.LoopQueue)
 			body = "🔁 Enabled Queue loop"
 		}
 	} else {

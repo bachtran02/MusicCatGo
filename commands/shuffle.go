@@ -5,16 +5,7 @@ import (
 
 	"github.com/disgoorg/disgo/discord"
 	"github.com/disgoorg/disgo/handler"
-	"github.com/disgoorg/snowflake/v2"
 )
-
-func Shuffle(playerManager *musicbot.PlayerManager, guildId snowflake.ID, shuffleMode musicbot.ShuffleMode) error {
-
-	if state, ok := playerManager.GetState(guildId); ok {
-		state.SetShuffle(shuffleMode)
-	}
-	return nil
-}
 
 func (c *Commands) Shuffle(_ discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
 
@@ -22,10 +13,10 @@ func (c *Commands) Shuffle(_ discord.SlashCommandInteractionData, e *handler.Com
 
 	if state, ok := c.PlayerManager.GetState(*e.GuildID()); ok {
 		if state.Shuffle() {
-			state.SetShuffle(musicbot.ShuffleOff)
+			c.PlayerManager.SetShuffle(*e.GuildID(), musicbot.ShuffleOff)
 			body = "🔀 Shuffle off"
 		} else {
-			state.SetShuffle(musicbot.ShuffleOn)
+			c.PlayerManager.SetShuffle(*e.GuildID(), musicbot.ShuffleOn)
 			body = "🔀 Shuffle on"
 		}
 	} else {

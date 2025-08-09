@@ -37,10 +37,7 @@ func (q *PlayerManager) Delete(guildID snowflake.ID) {
 	delete(q.states, guildID)
 }
 
-func (q *PlayerManager) Add(guildID snowflake.ID, channelID snowflake.ID, tracks ...lavalink.Track) {
-	q.mu.Lock()
-	defer q.mu.Unlock()
-
+func (q *PlayerManager) getOrCreateState(guildID snowflake.ID) *PlayerState {
 	state, ok := q.states[guildID]
 	if !ok {
 		state = &PlayerState{
@@ -49,6 +46,14 @@ func (q *PlayerManager) Add(guildID snowflake.ID, channelID snowflake.ID, tracks
 		}
 		q.states[guildID] = state
 	}
+	return state
+}
+
+func (q *PlayerManager) Add(guildID snowflake.ID, channelID snowflake.ID, tracks ...lavalink.Track) {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+
+	state := q.getOrCreateState(guildID)
 	state.channelID = channelID
 	state.tracks = append(state.tracks, tracks...)
 }
@@ -57,12 +62,7 @@ func (q *PlayerManager) AddNext(guildID snowflake.ID, channelID snowflake.ID, tr
 	q.mu.Lock()
 	defer q.mu.Unlock()
 
-	state, ok := q.states[guildID]
-	if !ok {
-		q.Add(guildID, channelID, tracks...)
-		return
-	}
-
+	state := q.getOrCreateState(guildID)
 	state.channelID = channelID
 	state.tracks = append(tracks, state.tracks...)
 }
@@ -77,24 +77,34 @@ func (q *PlayerManager) Next(guildID snowflake.ID) (lavalink.Track, bool) {
 		return lavalink.Track{}, false
 	}
 
-	track := player.current
-	if player.loop != LoopTrack && len(player.tracks) > 0 {
-		if player.shuffle == ShuffleOn {
-			i := rand.Intn(len(player.tracks))
-			track = player.tracks[i]
-			player.tracks = append(player.tracks[:i], player.tracks[i+1:]...)
+	var (
+		current_track = player.current // current track
+		next_track    lavalink.Track   // next track
+	)
 
+	if player.loop == LoopTrack && player.current.Encoded != "" {
+		/* repeating current track */
+		next_track = player.current
+	} else if len(player.tracks) > 0 {
+		/* selecting next track */
+		if player.shuffle == ShuffleOn {
+			/* select a random track from the queue */
+			i := rand.Intn(len(player.tracks))
+			next_track = player.tracks[i]
+			player.tracks = append(player.tracks[:i], player.tracks[i+1:]...)
 		} else {
-			track = player.tracks[0]
+			/* select firt track from the queue */
+			next_track = player.tracks[0]
 			player.tracks = player.tracks[1:]
 		}
-		if player.loop == LoopQueue && player.current.Encoded != "" {
-			player.tracks = append(player.tracks, player.current)
+		if player.loop == LoopQueue && next_track.Encoded != "" {
+			/* if in queue loop -> add next track back to queue */
+			player.tracks = append(player.tracks, next_track)
 		}
-		player.current = track
-		player.prevtracks = append(player.prevtracks, track)
+		player.current = next_track                                  /* replace current with next track */
+		player.prevtracks = append(player.prevtracks, current_track) /* add old track to previous tracks */
 	}
-	return track, true
+	return next_track, true
 }
 
 func (q *PlayerManager) Previous(guildID snowflake.ID) (lavalink.Track, bool) {
@@ -106,12 +116,12 @@ func (q *PlayerManager) Previous(guildID snowflake.ID) (lavalink.Track, bool) {
 		return lavalink.Track{}, false
 	}
 
-	track := player.prevtracks[len(player.prevtracks)-2]
+	prev_track := player.prevtracks[len(player.prevtracks)-1]
 	player.prevtracks = player.prevtracks[:len(player.prevtracks)-1]
 	player.tracks = append([]lavalink.Track{player.current}, player.tracks...)
-	player.current = track
+	player.current = prev_track
 
-	return track, true
+	return prev_track, true
 }
 
 func (q *PlayerManager) RemoveTrack(guildID snowflake.ID, trackIndex int) (lavalink.Track, bool) {
