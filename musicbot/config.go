@@ -46,11 +46,12 @@ type NodeConfig struct {
 }
 
 type TrackerConfig struct {
-	Enabled     bool         `yaml:"enabled"`
-	ChannelID   snowflake.ID `yaml:"channel_id"`
-	GuildID     snowflake.ID `yaml:"guild_id"`
-	HttpPath    string       `yaml:"http_path"`
-	HttpAddress string       `yaml:"http_address"`
+	Enabled        bool         `yaml:"enabled"`
+	ChannelID      snowflake.ID `yaml:"channel_id"`
+	GuildID        snowflake.ID `yaml:"guild_id"`
+	HttpPath       string       `yaml:"http_path"`
+	HttpAddress    string       `yaml:"http_address"`
+	AllowedOrigins []string     `yaml:"allowed_origins"`
 }
 
 type DBConfig struct {

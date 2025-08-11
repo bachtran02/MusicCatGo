@@ -129,26 +129,32 @@ func main() {
 
 	slog.Info("MusicCat is now running.")
 
-	// enable music tracker
 	if b.Cfg.MusicTracker.Enabled {
+		/* enabling tracker server */
+		wsServer := musicbot.NewWsServer(b.Cfg.MusicTracker.AllowedOrigins)
+		go wsServer.Run()
+
 		trackerHandler := handlers.TrackerHandler{
 			ChannelID: b.Cfg.MusicTracker.ChannelID,
 			GuildID:   b.Cfg.MusicTracker.GuildID,
+			WsServer:  wsServer,
 		}
 
-		// run http server to serve current track
-		httpServer := musicbot.NewHttpServer(
+		// run tracker server to serve current track
+		trackerServer := musicbot.NewTrackerServer(
+			wsServer,
 			trackerHandler.ServeHTTP,
 			b.Cfg.MusicTracker.HttpAddress,
 			b.Cfg.MusicTracker.HttpPath)
 
-		go httpServer.Start()
-		defer httpServer.Close(context.TODO())
+		go trackerServer.Start()
+		defer trackerServer.Close(context.TODO())
 
 		// register lavalink client listener
 		b.Lavalink.AddListeners(
 			disgolink.NewListenerFunc(trackerHandler.OnTrackStart),
 			disgolink.NewListenerFunc(trackerHandler.OnTrackEnd),
+			disgolink.NewListenerFunc(trackerHandler.OnPlayerUpdate),
 		)
 		slog.Info(
 			"MusicCat music tracker is enabled",
