@@ -104,7 +104,7 @@ func ServeWs(server *WsServer, w http.ResponseWriter, r *http.Request) {
 	connection := &Connection{server: server, conn: conn, send: make(chan []byte, 256)}
 	server.register <- connection
 
-	// Allow collection of memory referenced by the caller by doing all work in
-	// new goroutines.
+	/* Allow collection of memory referenced by the caller
+	by doing all work in new goroutines. */
 	go connection.writePump()
 }

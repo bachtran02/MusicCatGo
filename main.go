@@ -144,8 +144,9 @@ func main() {
 		trackerServer := musicbot.NewTrackerServer(
 			wsServer,
 			trackerHandler.ServeHTTP,
-			b.Cfg.MusicTracker.HttpAddress,
-			b.Cfg.MusicTracker.HttpPath)
+			b.Cfg.MusicTracker.HostAddress,
+			b.Cfg.MusicTracker.HttpPath,
+			b.Cfg.MusicTracker.WebsocketPath)
 
 		go trackerServer.Start()
 		defer trackerServer.Close(context.TODO())
@@ -158,9 +159,12 @@ func main() {
 		)
 		slog.Info(
 			"MusicCat music tracker is enabled",
-			slog.String("addr", fmt.Sprintf("%s/%s",
-				b.Cfg.MusicTracker.HttpAddress,
+			slog.String("http", fmt.Sprintf("%s/%s",
+				b.Cfg.MusicTracker.HostAddress,
 				b.Cfg.MusicTracker.HttpPath)),
+			slog.String("ws", fmt.Sprintf("%s/%s",
+				b.Cfg.MusicTracker.HostAddress,
+				b.Cfg.MusicTracker.WebsocketPath)),
 		)
 	}
 

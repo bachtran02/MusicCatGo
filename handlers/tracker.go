@@ -71,11 +71,9 @@ func (h *TrackerHandler) OnTrackEnd(p disgolink.Player, event lavalink.TrackEndE
 	h.mutex.Lock()
 	defer h.mutex.Unlock()
 
-	/*
-		we don't check for channel id because either
-		the target channel has finished playing or
-		the player is not in target channel intially
-	*/
+	/* we don't check for channel id because either
+	the target channel has finished playing or
+	the player is not in target channel initially */
 	if p.GuildID() == h.GuildID {
 		h.track = lavalink.Track{}
 		h.isPlaying = false
