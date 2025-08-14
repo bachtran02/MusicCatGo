@@ -19,6 +19,10 @@ func ReadConfig(path string) (Config, error) {
 		MusicTracker: TrackerConfig{
 			Enabled: false,
 		},
+		Log: LogConfig{
+			Level:  "info",
+			Format: "text",
+		},
 	}
 	if err = yaml.NewDecoder(file).Decode(&cfg); err != nil {
 		return Config{}, fmt.Errorf("failed to decode config: %w", err)
@@ -31,10 +35,19 @@ type Config struct {
 	Nodes        []NodeConfig  `yaml:"nodes"`
 	MusicTracker TrackerConfig `yaml:"music_tracker"`
 	DB           DBConfig      `yaml:"database"`
+	Log          LogConfig     `yaml:"log"`
 }
 
 type BotConfig struct {
 	Token string `yaml:"token"`
+}
+
+type LogConfig struct {
+	Level     string `yaml:"level"`
+	Format    string `yaml:"format"`
+	FilePath  string `yaml:"file_path"`
+	AddSource bool   `yaml:"add_source"`
+	Env       string `yaml:"env"`
 }
 
 type NodeConfig struct {
