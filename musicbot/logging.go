@@ -23,6 +23,15 @@ func LogSendError(err error, guildID string, userID string, ephemeral bool) {
 	)
 }
 
+func LogUpdateError(err error, guildID string, userID string) {
+	/* log an error when a failed attempt to update a message occurs. */
+	slog.Error("failed to update message",
+		slog.Any("error", err),
+		slog.String("guild_id", guildID),
+		slog.String("user_id", userID),
+	)
+}
+
 func LogCommandError(err error, command string, guildID string, userID string) {
 	/* log a error when a failed attempt to run a command */
 	slog.Error("failed to run command",

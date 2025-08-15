@@ -10,15 +10,20 @@ import (
 func (c *Commands) Pause(_ discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
 
 	if err := c.PlayerManager.Pause(&c.Lavalink, e.Ctx, *e.GuildID()); err != nil {
-		return e.CreateMessage(discord.MessageCreate{
+		if sendErr := e.CreateMessage(discord.MessageCreate{
 			Content: "Failed to pause player",
 			Flags:   discord.MessageFlagEphemeral,
-		})
+		}); sendErr != nil {
+			musicbot.LogSendError(sendErr, e.GuildID().String(), e.User().ID.String(), true)
+		}
+		return err
 	}
 
-	e.CreateMessage(discord.MessageCreate{
+	if sendErr := e.CreateMessage(discord.MessageCreate{
 		Embeds: []discord.Embed{{Description: "⏸️ Paused player"}},
-	})
+	}); sendErr != nil {
+		musicbot.LogSendError(sendErr, e.GuildID().String(), e.User().ID.String(), false)
+	}
 	musicbot.AutoRemove(e)
 	return nil
 }

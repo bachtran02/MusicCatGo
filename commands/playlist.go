@@ -122,7 +122,7 @@ func (c *Commands) PlaylistTrackAutocomplete(e *handler.AutocompleteEvent) error
 	}
 
 	// Fetch playlist info
-	_, playlistTracks, err := c.Db.GetPlaylist(e.Ctx, playlistId)
+	_, playlistTracks, err := c.Db.GetPlaylist(e.Ctx, int(e.User().ID), playlistId)
 	if err != nil || len(playlistTracks) == 0 {
 		return e.AutocompleteResult(nil)
 	}
@@ -247,7 +247,7 @@ func (c *Commands) AddPlaylistTrack(data discord.SlashCommandInteractionData, e 
 		return err
 	}
 
-	playlist, _, err := c.Db.GetPlaylist(e.Ctx, playlistID)
+	playlist, _, err := c.Db.GetPlaylist(e.Ctx, int(e.User().ID), playlistID)
 	if err != nil {
 		return e.CreateMessage(discord.MessageCreate{
 			Content: err.Error(),

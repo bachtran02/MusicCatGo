@@ -14,10 +14,13 @@ func (cmd *Commands) Now(data discord.SlashCommandInteractionData, event *handle
 
 	track := player.Track()
 	if track == nil {
-		return event.CreateMessage(discord.MessageCreate{
+		if sendErr := event.CreateMessage(discord.MessageCreate{
 			Content: "Player is not playing",
 			Flags:   discord.MessageFlagEphemeral,
-		})
+		}); sendErr != nil {
+			musicbot.LogSendError(sendErr, event.GuildID().String(), event.User().ID.String(), true)
+		}
+		return nil
 	}
 
 	var userData UserData
@@ -49,7 +52,10 @@ func (cmd *Commands) Now(data discord.SlashCommandInteractionData, event *handle
 		SetDescription(content).
 		SetThumbnail(*track.Info.ArtworkURL)
 
-	return event.CreateMessage(discord.MessageCreate{
+	if sendErr := event.CreateMessage(discord.MessageCreate{
 		Embeds: []discord.Embed{embed.Build()},
-	})
+	}); sendErr != nil {
+		musicbot.LogSendError(sendErr, event.GuildID().String(), event.User().ID.String(), false)
+	}
+	return nil
 }

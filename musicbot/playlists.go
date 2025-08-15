@@ -112,9 +112,9 @@ func (d *DB) SearchPlaylist(ctx context.Context, userID snowflake.ID, query stri
 	return d.scanPlaylists(rows)
 }
 
-func (d *DB) GetPlaylist(ctx context.Context, playlistId int) (Playlist, []PlaylistTrack, error) {
+func (d *DB) GetPlaylist(ctx context.Context, userId int, playlistId int) (Playlist, []PlaylistTrack, error) {
 
-	row := d.Pool.QueryRow(ctx, "SELECT * FROM playlists WHERE id = $1", playlistId)
+	row := d.Pool.QueryRow(ctx, "SELECT * FROM playlists WHERE id = $1 AND owner_id = $2", playlistId, userId)
 
 	var playlist Playlist
 	if err := row.Scan(&playlist.ID, &playlist.Name, &playlist.OwnerID, &playlist.CreatedAt); err != nil {
