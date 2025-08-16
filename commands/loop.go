@@ -13,9 +13,9 @@ func (c *Commands) Loop(data discord.SlashCommandInteractionData, e *handler.Com
 		mode string = data.String("mode")
 	)
 
-	if _, ok := c.PlayerManager.GetState(*e.GuildID()); !ok {
+	if !c.PlayerManager.IsPlaying(*e.GuildID()) {
 		if sendErr := e.CreateMessage(discord.MessageCreate{
-			Content: "Player is not playing",
+			Content: "Player is not playing.",
 			Flags:   discord.MessageFlagEphemeral,
 		}); sendErr != nil {
 			musicbot.LogSendError(sendErr, e.GuildID().String(), e.User().ID.String(), true)

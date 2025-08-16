@@ -119,7 +119,7 @@ func (d *DB) GetPlaylist(ctx context.Context, userId int, playlistId int) (Playl
 	var playlist Playlist
 	if err := row.Scan(&playlist.ID, &playlist.Name, &playlist.OwnerID, &playlist.CreatedAt); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return Playlist{}, nil, fmt.Errorf("Playlist not found")
+			return Playlist{}, nil, fmt.Errorf("playlist not found in database")
 		}
 		return Playlist{}, nil, err
 	}
@@ -144,7 +144,7 @@ func (d *DB) AddTracksToPlaylist(ctx context.Context, playlistId int, userId sno
 	}
 
 	query := "INSERT INTO playlist_tracks (playlist_id, track_title, added_by, track) VALUES "
-	values := []interface{}{}
+	values := []any{}
 
 	for i, track := range tracks {
 		if i > 0 {
@@ -155,7 +155,7 @@ func (d *DB) AddTracksToPlaylist(ctx context.Context, playlistId int, userId sno
 	}
 	query += ";" // End the query
 
-	values = append([]interface{}{playlistId}, values...)
+	values = append([]any{playlistId}, values...)
 
 	_, err := d.Pool.Exec(ctx, query, values...)
 	return err

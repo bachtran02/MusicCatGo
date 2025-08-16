@@ -10,12 +10,9 @@ import (
 
 func (cmd *Commands) Now(data discord.SlashCommandInteractionData, event *handler.CommandEvent) error {
 
-	player := cmd.Lavalink.Player(*event.GuildID())
-
-	track := player.Track()
-	if track == nil {
+	if !cmd.PlayerManager.IsPlaying(*event.GuildID()) {
 		if sendErr := event.CreateMessage(discord.MessageCreate{
-			Content: "Player is not playing",
+			Content: "Player is not playing.",
 			Flags:   discord.MessageFlagEphemeral,
 		}); sendErr != nil {
 			musicbot.LogSendError(sendErr, event.GuildID().String(), event.User().ID.String(), true)
@@ -23,7 +20,11 @@ func (cmd *Commands) Now(data discord.SlashCommandInteractionData, event *handle
 		return nil
 	}
 
-	var userData UserData
+	var (
+		player   = cmd.Lavalink.Player(*event.GuildID())
+		track    = player.Track()
+		userData UserData
+	)
 	_ = track.UserData.Unmarshal(&userData)
 
 	content := fmt.Sprintf("[%s](%s)\n%s\n%s\n\nRequested: <@!%s>\n",

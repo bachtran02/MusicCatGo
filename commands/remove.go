@@ -31,24 +31,32 @@ func (c *Commands) RemoveQueueTrack(data discord.SlashCommandInteractionData, e 
 
 	queue, ok := c.PlayerManager.Queue(*e.GuildID())
 	if !ok || len(queue) == 0 || removeIndex < 0 || removeIndex >= len(queue) {
-		return e.CreateMessage(discord.MessageCreate{
-			Content: "Invalid index or no track to remove",
+		if sendErr := e.CreateMessage(discord.MessageCreate{
+			Content: "Invalid index or no track to remove.",
 			Flags:   discord.MessageFlagEphemeral,
-		})
+		}); sendErr != nil {
+			musicbot.LogSendError(sendErr, e.GuildID().String(), e.User().ID.String(), true)
+		}
+		return nil
 	}
 
 	track, ok := c.PlayerManager.RemoveTrack(*e.GuildID(), removeIndex)
 	if !ok {
-		return e.CreateMessage(discord.MessageCreate{
-			Content: "Failed to remove track",
+		if sendErr := e.CreateMessage(discord.MessageCreate{
+			Content: "Failed to remove track.",
 			Flags:   discord.MessageFlagEphemeral,
-		})
+		}); sendErr != nil {
+			musicbot.LogSendError(sendErr, e.GuildID().String(), e.User().ID.String(), true)
+		}
+		return nil
 	}
 
-	e.CreateMessage(discord.MessageCreate{
+	if sendErr := e.CreateMessage(discord.MessageCreate{
 		Embeds: []discord.Embed{{Description: fmt.Sprintf(
-			"Track removed: [%s](%s)", track.Info.Title, *track.Info.URI)}},
-	})
+			"Track [%s](%s) removed from queue.", track.Info.Title, *track.Info.URI)}},
+	}); sendErr != nil {
+		musicbot.LogSendError(sendErr, e.GuildID().String(), e.User().ID.String(), false)
+	}
 	musicbot.AutoRemove(e)
 	return nil
 }

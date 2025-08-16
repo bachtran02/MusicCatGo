@@ -20,6 +20,8 @@ func Previous(c *disgolink.Client, playerManager *musicbot.PlayerManager, ctx co
 		updateOpt lavalink.PlayerUpdateOpt = lavalink.WithPosition(0)
 	)
 
+	/* if past 10 seconds of current track then restart,
+	else move back to previous track */
 	if player.Position() < lavalink.Second*10 {
 		if prevTrack, ok := playerManager.Previous(guildId); ok {
 			updateOpt = lavalink.WithTrack(prevTrack)

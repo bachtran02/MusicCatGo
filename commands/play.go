@@ -300,9 +300,6 @@ func buildPlaylistEmbed(playlist lavalink.Playlist, requester snowflake.ID) disc
 
 func HandlePlay(playOpts PlayOpts, e *handler.CommandEvent, c *Commands) error {
 
-	// delete response message
-	defer musicbot.AutoRemove(e)
-
 	/* look up search query in lavalink */
 	result, err := SearchQuery(playOpts.Query, playOpts.Type, c, e.User().ID, e.Ctx)
 	if err != nil {
@@ -371,12 +368,13 @@ func HandlePlay(playOpts PlayOpts, e *handler.CommandEvent, c *Commands) error {
 
 	voiceState, _ := c.Client.Caches().VoiceState(*e.GuildID(), e.User().ID)
 	if err = c.Client.UpdateVoiceState(context.Background(), *e.GuildID(), voiceState.ChannelID, false, true); err != nil {
-		if _, sendErr := e.CreateFollowupMessage(discord.MessageCreate{
+		if fuMessage, sendErr := e.CreateFollowupMessage(discord.MessageCreate{
 			Content: "Failed to join voice channel.",
 		}); sendErr != nil {
 			musicbot.LogSendError(sendErr, e.GuildID().String(), e.User().ID.String(), false)
 		} else {
 			// remove follow-up message
+			go e.DeleteFollowupMessage(fuMessage.ID)
 		}
 		return err
 	}
@@ -407,16 +405,18 @@ func HandlePlay(playOpts PlayOpts, e *handler.CommandEvent, c *Commands) error {
 
 	player := c.Lavalink.Player(*e.GuildID())
 	if player.Track() == nil {
+		/* player is not playing so play track */
 		track, _ := c.PlayerManager.Next(*e.GuildID())
 		playCtx, playCancel := context.WithTimeout(e.Ctx, 10*time.Second)
 		defer playCancel()
 		if err = player.Update(playCtx, lavalink.WithTrack(track)); err != nil {
-			if _, sendErr := e.CreateFollowupMessage(discord.MessageCreate{
+			if fuMessage, sendErr := e.CreateFollowupMessage(discord.MessageCreate{
 				Content: "Failed to play track.",
 			}); sendErr != nil {
 				musicbot.LogSendError(sendErr, e.GuildID().String(), e.User().ID.String(), true)
 			} else {
 				// remove follow-up message
+				go e.DeleteFollowupMessage(fuMessage.ID)
 			}
 			return err
 		}
@@ -441,6 +441,8 @@ func (cmd *Commands) PlayPlaylist(data discord.SlashCommandInteractionData, even
 	if err := event.DeferCreateMessage(false); err != nil {
 		return err
 	}
+	/* delete response message */
+	defer musicbot.AutoRemove(event)
 
 	var (
 		next    OptBool
@@ -486,6 +488,8 @@ func (cmd *Commands) Play(data discord.SlashCommandInteractionData, e *handler.C
 	if err := e.DeferCreateMessage(false); err != nil {
 		return err
 	}
+	/* delete response message */
+	defer musicbot.AutoRemove(e)
 
 	var (
 		next    OptBool

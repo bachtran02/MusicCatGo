@@ -52,7 +52,7 @@ func (c *Commands) Connect(data discord.SlashCommandInteractionData, e *handler.
 	}
 
 	if sendErr := e.CreateMessage(discord.MessageCreate{
-		Content: fmt.Sprint("Joined <#", voiceState.ChannelID, ">"),
+		Content: fmt.Sprint("Joined <#", voiceState.ChannelID, ">."),
 	}); sendErr != nil {
 		musicbot.LogSendError(sendErr, e.GuildID().String(), e.User().ID.String(), false)
 		return nil
@@ -75,7 +75,7 @@ func (c *Commands) Disconnect(data discord.SlashCommandInteractionData, e *handl
 	}
 
 	if sendErr := e.CreateMessage(discord.MessageCreate{
-		Content: "Left voice channel!",
+		Content: "Left voice channel.",
 	}); sendErr != nil {
 		musicbot.LogSendError(sendErr, e.GuildID().String(), e.User().ID.String(), false)
 	}
