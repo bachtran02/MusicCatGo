@@ -11,9 +11,15 @@ type HttpServer struct {
 	server *http.Server
 }
 
-func NewHttpServer(handler func(http.ResponseWriter, *http.Request), host string, path string) *HttpServer {
+func NewTrackerServer(wsServer *WsServer, trackerHandler func(http.ResponseWriter, *http.Request),
+	host string, http_path string, ws_path string) *HttpServer {
 	mux := http.NewServeMux()
-	mux.HandleFunc(fmt.Sprintf("/%s", path), handler)
+	/* serve tracker handler */
+	mux.HandleFunc(fmt.Sprintf("/%s", http_path), trackerHandler)
+	/* serve websocket handler */
+	mux.HandleFunc(fmt.Sprintf("/%s", ws_path), func(w http.ResponseWriter, r *http.Request) {
+		ServeWs(wsServer, w, r)
+	})
 
 	s := &HttpServer{
 		server: &http.Server{

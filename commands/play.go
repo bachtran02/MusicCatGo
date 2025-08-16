@@ -45,7 +45,7 @@ type UserData struct {
 }
 
 type PlayOpts struct {
-	Query    interface{}
+	Query    any
 	Type     SearchType
 	PlayNext OptBool
 	Loop     OptBool
@@ -202,7 +202,7 @@ func SearchPlaylist(playlistId int, c *Commands, userId snowflake.ID, ctx contex
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
-	dbPlaylist, dbTracks, err := c.Db.GetPlaylist(ctx, playlistId)
+	dbPlaylist, dbTracks, err := c.Db.GetPlaylist(ctx, int(userId), playlistId)
 	if err != nil {
 		return nil, err
 	}
@@ -230,6 +230,7 @@ func SearchQuery(query interface{}, searchType SearchType, c *Commands, userId s
 	case LavalinkSearch:
 		q, ok := query.(string)
 		if !ok {
+			/* query is not type string */
 			return nil, fmt.Errorf("query should be a string for Lavalink search, got %T", query)
 		}
 		return SearchLavalink(q, c, ctx)
@@ -237,6 +238,7 @@ func SearchQuery(query interface{}, searchType SearchType, c *Commands, userId s
 	case PlaylistSearch:
 		q, ok := query.(int)
 		if !ok {
+			/* query (playlist id) is not type int */
 			return nil, fmt.Errorf("query should be an int for Playlist search, got %T", query)
 		}
 		return SearchPlaylist(q, c, userId, ctx)
@@ -296,16 +298,11 @@ func buildPlaylistEmbed(playlist lavalink.Playlist, requester snowflake.ID) disc
 		Build()
 }
 
-func _Play(playOpts PlayOpts, e *handler.CommandEvent, c *Commands) error {
+func HandlePlay(playOpts PlayOpts, e *handler.CommandEvent, c *Commands) error {
 
-	// delete response message
-	defer musicbot.AutoRemove(e)
-
+	/* look up search query in lavalink */
 	result, err := SearchQuery(playOpts.Query, playOpts.Type, c, e.User().ID, e.Ctx)
 	if err != nil {
-		_, err = e.CreateFollowupMessage(discord.MessageCreate{
-			Content: err.Error(),
-		})
 		return err
 	}
 
@@ -348,28 +345,37 @@ func _Play(playOpts PlayOpts, e *handler.CommandEvent, c *Commands) error {
 		embed = buildPlaylistEmbed(loadData, userData.Requester)
 
 	case lavalink.Empty:
-		_, err = e.UpdateInteractionResponse(discord.MessageUpdate{
+		if _, updateError := e.UpdateInteractionResponse(discord.MessageUpdate{
 			Content: json.Ptr("No matches found for search query."),
-		})
-		return err
+		}); updateError != nil {
+			musicbot.LogUpdateError(updateError, e.GuildID().String(), e.User().ID.String())
+		}
+		return nil
 	case lavalink.Exception:
-		_, err = e.UpdateInteractionResponse(discord.MessageUpdate{
-			Content: json.Ptr(fmt.Sprintf("Failed to load tracks: `%s`", loadData.Error())),
-		})
-		return err
+		if _, updateError := e.UpdateInteractionResponse(discord.MessageUpdate{
+			Content: json.Ptr("Failed to load track."),
+		}); updateError != nil {
+			musicbot.LogUpdateError(updateError, e.GuildID().String(), e.User().ID.String())
+		}
+		return loadData
 	}
 
-	if _, err = e.UpdateInteractionResponse(discord.MessageUpdate{
+	if _, updateError := e.UpdateInteractionResponse(discord.MessageUpdate{
 		Embeds: &[]discord.Embed{embed},
-	}); err != nil {
-		return err
+	}); updateError != nil {
+		musicbot.LogUpdateError(updateError, e.GuildID().String(), e.User().ID.String())
 	}
 
 	voiceState, _ := c.Client.Caches().VoiceState(*e.GuildID(), e.User().ID)
 	if err = c.Client.UpdateVoiceState(context.Background(), *e.GuildID(), voiceState.ChannelID, false, true); err != nil {
-		_, err = e.CreateFollowupMessage(discord.MessageCreate{
-			Content: fmt.Sprintf("Failed to join voice channel: %s", err),
-		})
+		if fuMessage, sendErr := e.CreateFollowupMessage(discord.MessageCreate{
+			Content: "Failed to join voice channel.",
+		}); sendErr != nil {
+			musicbot.LogSendError(sendErr, e.GuildID().String(), e.User().ID.String(), false)
+		} else {
+			// remove follow-up message
+			go e.DeleteFollowupMessage(fuMessage.ID)
+		}
 		return err
 	}
 
@@ -399,13 +405,19 @@ func _Play(playOpts PlayOpts, e *handler.CommandEvent, c *Commands) error {
 
 	player := c.Lavalink.Player(*e.GuildID())
 	if player.Track() == nil {
+		/* player is not playing so play track */
 		track, _ := c.PlayerManager.Next(*e.GuildID())
 		playCtx, playCancel := context.WithTimeout(e.Ctx, 10*time.Second)
 		defer playCancel()
 		if err = player.Update(playCtx, lavalink.WithTrack(track)); err != nil {
-			_, err = e.CreateFollowupMessage(discord.MessageCreate{
-				Content: fmt.Sprintf("Failed to play track: %s", err),
-			})
+			if fuMessage, sendErr := e.CreateFollowupMessage(discord.MessageCreate{
+				Content: "Failed to play track.",
+			}); sendErr != nil {
+				musicbot.LogSendError(sendErr, e.GuildID().String(), e.User().ID.String(), true)
+			} else {
+				// remove follow-up message
+				go e.DeleteFollowupMessage(fuMessage.ID)
+			}
 			return err
 		}
 	}
@@ -416,15 +428,21 @@ func (cmd *Commands) PlayPlaylist(data discord.SlashCommandInteractionData, even
 
 	_, ok := cmd.Client.Caches().VoiceState(*event.GuildID(), event.User().ID)
 	if !ok {
-		return event.CreateMessage(discord.MessageCreate{
+		if sendErr := event.CreateMessage(discord.MessageCreate{
 			Content: "You need to be in a voice channel to use this command.",
 			Flags:   discord.MessageFlagEphemeral,
-		})
+		}); sendErr != nil {
+			musicbot.LogSendError(sendErr, event.GuildID().String(), event.User().ID.String(), true)
+		}
+		return nil
 	}
 
+	/* defer message as looking up query can take time */
 	if err := event.DeferCreateMessage(false); err != nil {
 		return err
 	}
+	/* delete response message */
+	defer musicbot.AutoRemove(event)
 
 	var (
 		next    OptBool
@@ -441,7 +459,7 @@ func (cmd *Commands) PlayPlaylist(data discord.SlashCommandInteractionData, even
 	s, ok := data.OptBool("shuffle")
 	shuffle = optBoolValue(s, ok)
 
-	return _Play(
+	return HandlePlay(
 		PlayOpts{
 			Query:    data.Int("playlist"),
 			Type:     PlaylistSearch,
@@ -453,19 +471,25 @@ func (cmd *Commands) PlayPlaylist(data discord.SlashCommandInteractionData, even
 		cmd)
 }
 
-func (cmd *Commands) Play(data discord.SlashCommandInteractionData, event *handler.CommandEvent) error {
+func (cmd *Commands) Play(data discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
 
-	_, ok := cmd.Client.Caches().VoiceState(*event.GuildID(), event.User().ID)
+	_, ok := cmd.Client.Caches().VoiceState(*e.GuildID(), e.User().ID)
 	if !ok {
-		return event.CreateMessage(discord.MessageCreate{
+		if sendErr := e.CreateMessage(discord.MessageCreate{
 			Content: "You need to be in a voice channel to use this command.",
 			Flags:   discord.MessageFlagEphemeral,
-		})
+		}); sendErr != nil {
+			musicbot.LogSendError(sendErr, e.GuildID().String(), e.User().ID.String(), true)
+		}
+		return nil
 	}
 
-	if err := event.DeferCreateMessage(false); err != nil {
+	/* defer message as looking up query can take time */
+	if err := e.DeferCreateMessage(false); err != nil {
 		return err
 	}
+	/* delete response message */
+	defer musicbot.AutoRemove(e)
 
 	var (
 		next    OptBool
@@ -482,7 +506,7 @@ func (cmd *Commands) Play(data discord.SlashCommandInteractionData, event *handl
 	s, ok := data.OptBool("shuffle")
 	shuffle = optBoolValue(s, ok)
 
-	return _Play(
+	return HandlePlay(
 		PlayOpts{
 			Query:    data.String("query"),
 			Type:     LavalinkSearch,
@@ -490,6 +514,6 @@ func (cmd *Commands) Play(data discord.SlashCommandInteractionData, event *handl
 			Loop:     loop,
 			Shuffle:  shuffle,
 		},
-		event,
+		e,
 		cmd)
 }

@@ -32,23 +32,30 @@ func (c *Commands) Connect(data discord.SlashCommandInteractionData, e *handler.
 	voiceState, ok := c.Client.Caches().VoiceState(*e.GuildID(), e.User().ID)
 
 	if !ok {
-		return e.CreateMessage(discord.MessageCreate{
+		if sendErr := e.CreateMessage(discord.MessageCreate{
 			Content: "You need to be in a voice channel to use this command.",
 			Flags:   discord.MessageFlagEphemeral,
-		})
+		}); sendErr != nil {
+			musicbot.LogSendError(sendErr, e.GuildID().String(), e.User().ID.String(), true)
+		}
+		return nil
 	}
 
 	if err := c.Client.UpdateVoiceState(context.Background(), *e.GuildID(), voiceState.ChannelID, false, true); err != nil {
-		_, err = e.CreateFollowupMessage(discord.MessageCreate{
-			Content: fmt.Sprintf("Failed to join voice channel: %s", err),
-		})
+		if sendErr := e.CreateMessage(discord.MessageCreate{
+			Content: "Failed to join voice channel.",
+			Flags:   discord.MessageFlagEphemeral,
+		}); sendErr != nil {
+			musicbot.LogSendError(sendErr, e.GuildID().String(), e.User().ID.String(), true)
+		}
 		return err
 	}
 
-	if err := e.CreateMessage(discord.MessageCreate{
-		Content: fmt.Sprint("Joined <#", voiceState.ChannelID, ">"),
-	}); err != nil {
-		return err
+	if sendErr := e.CreateMessage(discord.MessageCreate{
+		Content: fmt.Sprint("Joined <#", voiceState.ChannelID, ">."),
+	}); sendErr != nil {
+		musicbot.LogSendError(sendErr, e.GuildID().String(), e.User().ID.String(), false)
+		return nil
 	}
 
 	musicbot.AutoRemove(e)
@@ -58,23 +65,29 @@ func (c *Commands) Connect(data discord.SlashCommandInteractionData, e *handler.
 func (c *Commands) Disconnect(data discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
 
 	if err := c.Client.UpdateVoiceState(context.Background(), *e.GuildID(), nil, false, true); err != nil {
-		_, err = e.CreateFollowupMessage(discord.MessageCreate{
-			Content: fmt.Sprintf("Failed to leave voice channel: %s", err),
-		})
+		if sendErr := e.CreateMessage(discord.MessageCreate{
+			Content: "Failed to leave voice channel.",
+			Flags:   discord.MessageFlagEphemeral,
+		}); sendErr != nil {
+			musicbot.LogSendError(sendErr, e.GuildID().String(), e.User().ID.String(), true)
+		}
 		return err
 	}
 
-	if err := e.CreateMessage(discord.MessageCreate{
-		Content: "Left voice channel!",
-	}); err != nil {
-		return err
+	if sendErr := e.CreateMessage(discord.MessageCreate{
+		Content: "Left voice channel.",
+	}); sendErr != nil {
+		musicbot.LogSendError(sendErr, e.GuildID().String(), e.User().ID.String(), false)
 	}
 	musicbot.AutoRemove(e)
 	return nil
 }
 
 func (c *Commands) Ping(data discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
-	return e.CreateMessage(discord.MessageCreate{
+	if sendErr := e.CreateMessage(discord.MessageCreate{
 		Content: "Pong!",
-	})
+	}); sendErr != nil {
+		musicbot.LogSendError(sendErr, e.GuildID().String(), e.User().ID.String(), false)
+	}
+	return nil
 }

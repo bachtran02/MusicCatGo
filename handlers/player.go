@@ -34,8 +34,11 @@ func (h *Handlers) OnPlayerInteraction(event *events.ComponentInteractionCreate)
 	}
 
 	ctx := context.TODO()
+	buttonNameString := event.ComponentInteraction.ButtonInteractionData().CustomID()
 
-	switch ButtonID(event.ComponentInteraction.ButtonInteractionData().CustomID()) {
+	musicbot.LogPlayerInteraction(buttonNameString, event.GuildID().String(), event.User().ID.String())
+
+	switch ButtonID(buttonNameString) {
 	case PlayNext:
 		h.PlayerManager.Skip(&h.Lavalink, ctx, *event.GuildID())
 	case StopPlayer:

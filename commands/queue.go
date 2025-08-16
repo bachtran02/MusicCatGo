@@ -14,10 +14,13 @@ func (cmd *Commands) Queue(data discord.SlashCommandInteractionData, event *hand
 
 	track := player.Track()
 	if track == nil {
-		return event.CreateMessage(discord.MessageCreate{
-			Content: "Player is not playing",
+		if sendErr := event.CreateMessage(discord.MessageCreate{
+			Content: "Player is not playing.",
 			Flags:   discord.MessageFlagEphemeral,
-		})
+		}); sendErr != nil {
+			musicbot.LogSendError(sendErr, event.GuildID().String(), event.User().ID.String(), true)
+		}
+		return nil
 	}
 
 	var userData UserData
@@ -27,7 +30,7 @@ func (cmd *Commands) Queue(data discord.SlashCommandInteractionData, event *hand
 		track.Info.Title, *track.Info.URI, track.Info.Author, musicbot.PlayerBar(player), userData.Requester)
 
 	if tracks, ok := cmd.PlayerManager.Queue(*event.GuildID()); ok {
-		content += fmt.Sprintf("\n**Up next:** `%d tracks`", len(tracks))
+		content += fmt.Sprintf("\n**Up next:** `%d track(s)`", len(tracks))
 		limit := min(10, len(tracks))
 		for i, track := range tracks[:limit] {
 			var Playtime string
@@ -50,7 +53,10 @@ func (cmd *Commands) Queue(data discord.SlashCommandInteractionData, event *hand
 		SetDescription(content).
 		SetThumbnail(*track.Info.ArtworkURL)
 
-	return event.CreateMessage(discord.MessageCreate{
+	if sendErr := event.CreateMessage(discord.MessageCreate{
 		Embeds: []discord.Embed{embed.Build()},
-	})
+	}); sendErr != nil {
+		musicbot.LogSendError(sendErr, event.GuildID().String(), event.User().ID.String(), false)
+	}
+	return nil
 }

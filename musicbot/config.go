@@ -19,6 +19,10 @@ func ReadConfig(path string) (Config, error) {
 		MusicTracker: TrackerConfig{
 			Enabled: false,
 		},
+		Log: LogConfig{
+			Level:  "info",
+			Format: "text",
+		},
 	}
 	if err = yaml.NewDecoder(file).Decode(&cfg); err != nil {
 		return Config{}, fmt.Errorf("failed to decode config: %w", err)
@@ -31,10 +35,19 @@ type Config struct {
 	Nodes        []NodeConfig  `yaml:"nodes"`
 	MusicTracker TrackerConfig `yaml:"music_tracker"`
 	DB           DBConfig      `yaml:"database"`
+	Log          LogConfig     `yaml:"log"`
 }
 
 type BotConfig struct {
 	Token string `yaml:"token"`
+}
+
+type LogConfig struct {
+	Level     string `yaml:"level"`
+	Format    string `yaml:"format"`
+	FilePath  string `yaml:"file_path"`
+	AddSource bool   `yaml:"add_source"`
+	Env       string `yaml:"env"`
 }
 
 type NodeConfig struct {
@@ -46,11 +59,13 @@ type NodeConfig struct {
 }
 
 type TrackerConfig struct {
-	Enabled     bool         `yaml:"enabled"`
-	ChannelID   snowflake.ID `yaml:"channel_id"`
-	GuildID     snowflake.ID `yaml:"guild_id"`
-	HttpPath    string       `yaml:"http_path"`
-	HttpAddress string       `yaml:"http_address"`
+	Enabled        bool         `yaml:"enabled"`
+	ChannelID      snowflake.ID `yaml:"channel_id"`
+	GuildID        snowflake.ID `yaml:"guild_id"`
+	HostAddress    string       `yaml:"host_address"`
+	HttpPath       string       `yaml:"http_path"`
+	WebsocketPath  string       `yaml:"websocket_path"`
+	AllowedOrigins []string     `yaml:"allowed_origins"`
 }
 
 type DBConfig struct {

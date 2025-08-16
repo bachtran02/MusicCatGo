@@ -148,3 +148,14 @@ func (q *PlayerManager) Queue(guildID snowflake.ID) ([]lavalink.Track, bool) {
 	}
 	return player.tracks, true
 }
+
+func (q *PlayerManager) IsPlaying(guildID snowflake.ID) bool {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+
+	state, ok := q.states[guildID]
+	if !ok {
+		return false
+	}
+	return state.current.Encoded != ""
+}

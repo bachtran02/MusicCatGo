@@ -3,11 +3,11 @@ package commands
 import (
 	"MusicCatGo/musicbot"
 	"fmt"
-	"log/slog"
 
 	"github.com/disgoorg/disgo/discord"
 	"github.com/disgoorg/disgo/handler"
 	"github.com/disgoorg/disgolink/v3/lavalink"
+	"github.com/disgoorg/json"
 	"github.com/disgoorg/lavasrc-plugin"
 )
 
@@ -122,7 +122,7 @@ func (c *Commands) PlaylistTrackAutocomplete(e *handler.AutocompleteEvent) error
 	}
 
 	// Fetch playlist info
-	_, playlistTracks, err := c.Db.GetPlaylist(e.Ctx, playlistId)
+	_, playlistTracks, err := c.Db.GetPlaylist(e.Ctx, int(e.User().ID), playlistId)
 	if err != nil || len(playlistTracks) == 0 {
 		return e.AutocompleteResult(nil)
 	}
@@ -162,55 +162,88 @@ func (c *Commands) RemovePlaylistTrackAutocomplete(e *handler.AutocompleteEvent)
 }
 
 func (c *Commands) CreatePlaylist(data discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
-	playlistName := data.String("playlist_name")
+	var (
+		playlistName = data.String("playlist_name")
+	)
+
+	/* deferring message */
+	if err := e.DeferCreateMessage(false); err != nil {
+		return err
+	}
 
 	err := c.Db.CreatePlaylist(e.Ctx, e.User().ID, e.User().Username, playlistName)
 	if err != nil {
-		return e.CreateMessage(discord.MessageCreate{
-			Content: fmt.Sprintf("Failed to create playlist: `%s`", err),
-			Flags:   discord.MessageFlagEphemeral,
-		})
+		if _, updateError := e.UpdateInteractionResponse(discord.MessageUpdate{
+			Content: json.Ptr("Failed to create playlist."),
+		}); updateError != nil {
+			musicbot.LogUpdateError(updateError, e.GuildID().String(), e.User().ID.String())
+		}
+		return err
 	}
-	e.CreateMessage(discord.MessageCreate{
-		Embeds: []discord.Embed{{Description: fmt.Sprintf("📋 Playlist `%s` created", playlistName)}},
-	})
+	if _, updateErr := e.UpdateInteractionResponse(discord.MessageUpdate{
+		Embeds: &[]discord.Embed{{Description: fmt.Sprintf("📋 Playlist `%s` created", playlistName)}},
+	}); updateErr != nil {
+		musicbot.LogUpdateError(updateErr, e.GuildID().String(), e.User().ID.String())
+	}
 	musicbot.AutoRemove(e)
 	return nil
 }
 
 func (c *Commands) DeletePlaylist(data discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
-	playlistId := data.Int("playlist")
+	var (
+		playlistId = data.Int("playlist")
+	)
+
+	/* deferring message */
+	if err := e.DeferCreateMessage(false); err != nil {
+		return err
+	}
 
 	err := c.Db.DeletePlaylist(e.Ctx, playlistId)
 	if err != nil {
-		return e.CreateMessage(discord.MessageCreate{
-			Content: "Failed to remove playlist",
-			Flags:   discord.MessageFlagEphemeral,
-		})
+		if _, updateError := e.UpdateInteractionResponse(discord.MessageUpdate{
+			Content: json.Ptr("Failed to remove playlist."),
+		}); updateError != nil {
+			musicbot.LogUpdateError(updateError, e.GuildID().String(), e.User().ID.String())
+		}
+		return err
 	}
-	e.CreateMessage(discord.MessageCreate{
-		Embeds: []discord.Embed{{Description: "📋 Playlist deleted"}},
-	})
+	if _, updateError := e.UpdateInteractionResponse(discord.MessageUpdate{
+		Embeds: &[]discord.Embed{{Description: "📋 Playlist deleted"}},
+	}); updateError != nil {
+		musicbot.LogUpdateError(updateError, e.GuildID().String(), e.User().ID.String())
+	}
 	musicbot.AutoRemove(e)
 	return nil
 }
 
 func (c *Commands) ListPlaylists(data discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
+	var (
+		playlistSearchLimit = 10
+	)
 
-	// TODO: don't hardcode limit
-	playlists, err := c.Db.SearchPlaylist(e.Ctx, e.User().ID, "", 10)
+	/* deferring message */
+	if err := e.DeferCreateMessage(false); err != nil {
+		return err
+	}
+
+	playlists, err := c.Db.SearchPlaylist(e.Ctx, e.User().ID, "", playlistSearchLimit)
 	if err != nil {
-		return e.CreateMessage(discord.MessageCreate{
-			Content: err.Error(),
-			Flags:   discord.MessageFlagEphemeral,
-		})
+		if _, updateErr := e.UpdateInteractionResponse(discord.MessageUpdate{
+			Content: json.Ptr("Failed to retrieve user playlists."),
+		}); updateErr != nil {
+			musicbot.LogUpdateError(updateErr, e.GuildID().String(), e.User().ID.String())
+		}
+		return err
 	}
 
 	if len(playlists) == 0 {
-		return e.CreateMessage(discord.MessageCreate{
-			Content: "You don't have any playlist.",
-			Flags:   discord.MessageFlagEphemeral,
-		})
+		if _, updateErr := e.UpdateInteractionResponse(discord.MessageUpdate{
+			Content: json.Ptr("You don't have any playlist."),
+		}); updateErr != nil {
+			musicbot.LogUpdateError(updateErr, e.GuildID().String(), e.User().ID.String())
+		}
+		return nil
 	}
 
 	content := fmt.Sprintf("<@%s>'s playlists\n", e.User().ID)
@@ -223,9 +256,12 @@ func (c *Commands) ListPlaylists(data discord.SlashCommandInteractionData, e *ha
 		SetTitle("Playlists").
 		SetDescription(content)
 
-	return e.CreateMessage(discord.MessageCreate{
-		Embeds: []discord.Embed{embed.Build()},
-	})
+	if _, updateErr := e.UpdateInteractionResponse(discord.MessageUpdate{
+		Embeds: &[]discord.Embed{embed.Build()},
+	}); updateErr != nil {
+		musicbot.LogUpdateError(updateErr, e.GuildID().String(), e.User().ID.String())
+	}
+	return nil
 }
 
 func (c *Commands) AddPlaylistTrack(data discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
@@ -235,41 +271,50 @@ func (c *Commands) AddPlaylistTrack(data discord.SlashCommandInteractionData, e 
 	)
 
 	if !urlPattern.MatchString(query) {
-		return e.CreateMessage(discord.MessageCreate{
+		if sendErr := e.CreateMessage(discord.MessageCreate{
 			Content: "Please enter a valid URL or use search autocomplete to add to playlist.",
 			Flags:   discord.MessageFlagEphemeral,
-		})
+		}); sendErr != nil {
+			musicbot.LogSendError(sendErr, e.GuildID().String(), e.User().ID.String(), true)
+		}
+		return nil
+	}
+
+	/* deferring message */
+	if err := e.DeferCreateMessage(false); err != nil {
+		return err
 	}
 
 	result, err := c.Lavalink.BestNode().LoadTracks(e.Ctx, query)
 	if err != nil {
-		slog.Error("failed to load tracks", slog.Any("err", err))
-		return err
+		return fmt.Errorf("failed to load tracks from Lavalink for query '%s': %w", query, err)
 	}
 
-	playlist, _, err := c.Db.GetPlaylist(e.Ctx, playlistID)
+	playlist, _, err := c.Db.GetPlaylist(e.Ctx, int(e.User().ID), playlistID)
 	if err != nil {
-		return e.CreateMessage(discord.MessageCreate{
-			Content: err.Error(),
-			Flags:   discord.MessageFlagEphemeral,
-		})
+		if _, updateErr := e.UpdateInteractionResponse(discord.MessageUpdate{
+			Content: json.Ptr("Failed to retrieve playlist."),
+		}); updateErr != nil {
+			musicbot.LogUpdateError(updateErr, e.GuildID().String(), e.User().ID.String())
+		}
+		return err
 	}
 
 	switch loadData := result.Data.(type) {
 	case lavalink.Track:
-		err := c.Db.AddTracksToPlaylist(e.Ctx, playlistID, e.User().ID, []lavalink.Track{loadData})
-		if err != nil {
+		if err := c.Db.AddTracksToPlaylist(e.Ctx, playlistID, e.User().ID, []lavalink.Track{loadData}); err != nil {
 			return err
 		}
-		e.CreateMessage(discord.MessageCreate{
-			Embeds: []discord.Embed{{
+		if _, updateErr := e.UpdateInteractionResponse(discord.MessageUpdate{
+			Embeds: &[]discord.Embed{{
 				Description: fmt.Sprintf("[%s](%s) added to playlist `%s`",
 					loadData.Info.Title, *loadData.Info.URI, playlist.Name)}},
-		})
+		}); updateErr != nil {
+			musicbot.LogUpdateError(updateErr, e.GuildID().String(), e.User().ID.String())
+		}
 
 	case lavalink.Playlist:
-		err := c.Db.AddTracksToPlaylist(e.Ctx, playlistID, e.User().ID, loadData.Tracks)
-		if err != nil {
+		if err := c.Db.AddTracksToPlaylist(e.Ctx, playlistID, e.User().ID, loadData.Tracks); err != nil {
 			return err
 		}
 
@@ -280,16 +325,20 @@ func (c *Commands) AddPlaylistTrack(data discord.SlashCommandInteractionData, e 
 
 		err = loadData.PluginInfo.Unmarshal(&playlistInfo)
 		if err != nil {
+			/* playlistInfo is extractable */
 			description = fmt.Sprintf("Playlist %s `%d tracks` added to playlist `%s`",
 				loadData.Info.Name, len(loadData.Tracks), playlist.Name)
 		} else {
+			/* use primitive playlist data */
 			description = fmt.Sprintf("Playlist [%s](%s) `%d tracks` added to playlist `%s`",
 				loadData.Info.Name, playlistInfo.URL, len(loadData.Tracks), playlist.Name)
 		}
 
-		e.CreateMessage(discord.MessageCreate{
-			Embeds: []discord.Embed{{Description: description}},
-		})
+		if _, updateErr := e.UpdateInteractionResponse(discord.MessageUpdate{
+			Embeds: &[]discord.Embed{{Description: description}},
+		}); updateErr != nil {
+			musicbot.LogUpdateError(updateErr, e.GuildID().String(), e.User().ID.String())
+		}
 	}
 
 	musicbot.AutoRemove(e)
@@ -301,14 +350,22 @@ func (c *Commands) RemovePlaylistTrack(data discord.SlashCommandInteractionData,
 		trackId = data.Int("track")
 	)
 
+	/* deferring message */
+	if err := e.DeferCreateMessage(false); err != nil {
+		return err
+	}
+	defer musicbot.AutoRemove(e)
+
 	err := c.Db.RemoveTrackFromPlaylist(e.Ctx, trackId, e.User().ID)
 	if err != nil {
 		return err
 	}
-	e.CreateMessage(discord.MessageCreate{
-		Embeds: []discord.Embed{{
-			Description: "Track removed from playlist"}},
-	})
-	musicbot.AutoRemove(e)
+
+	if _, updateErr := e.UpdateInteractionResponse(discord.MessageUpdate{
+		Embeds: &[]discord.Embed{{
+			Description: "Track removed from playlist."}},
+	}); updateErr != nil {
+		musicbot.LogUpdateError(updateErr, e.GuildID().String(), e.User().ID.String())
+	}
 	return nil
 }
