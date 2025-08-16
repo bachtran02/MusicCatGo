@@ -30,7 +30,7 @@ func (cmd *Commands) Queue(data discord.SlashCommandInteractionData, event *hand
 		track.Info.Title, *track.Info.URI, track.Info.Author, musicbot.PlayerBar(player), userData.Requester)
 
 	if tracks, ok := cmd.PlayerManager.Queue(*event.GuildID()); ok {
-		content += fmt.Sprintf("\n**Up next:** `%d tracks`", len(tracks))
+		content += fmt.Sprintf("\n**Up next:** `%d track(s)`", len(tracks))
 		limit := min(10, len(tracks))
 		for i, track := range tracks[:limit] {
 			var Playtime string

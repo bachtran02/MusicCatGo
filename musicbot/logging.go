@@ -4,6 +4,14 @@ import (
 	"log/slog"
 )
 
+func LogPlayerInteraction(button string, guildID string, userID string) {
+	slog.Info("player interaction",
+		slog.String("button", button),
+		slog.String("guild_id", guildID),
+		slog.String("user_id", userID),
+	)
+}
+
 func LogCommand(command string, guildID string, userID string) {
 	/* log a command execution */
 	slog.Info("command executed",

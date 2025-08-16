@@ -90,6 +90,7 @@ func (pm *PlayerManager) PlayPrevious(c *disgolink.Client, ctx context.Context, 
 	var updateOpt lavalink.PlayerUpdateOpt = lavalink.WithPosition(0)
 
 	if player.Position() < lavalink.Second*10 {
+		/* less than 10 seconds played, move back to previous track */
 		if prevTrack, ok := pm.Previous(guildId); ok {
 			updateOpt = lavalink.WithTrack(prevTrack)
 		}
