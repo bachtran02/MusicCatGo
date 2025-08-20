@@ -10,7 +10,8 @@ import (
 
 func (c *Commands) Stop(_ discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
 
-	if !c.PlayerManager.IsPlaying(*e.GuildID()) {
+	player, ok := c.PlayerManager.GetPlayer(*e.GuildID())
+	if !ok || !player.IsPlaying() {
 		sendErr := e.CreateMessage(discord.MessageCreate{
 			Content: "Player is not playing.",
 			Flags:   discord.MessageFlagEphemeral,
@@ -21,22 +22,23 @@ func (c *Commands) Stop(_ discord.SlashCommandInteractionData, e *handler.Comman
 		return nil
 	}
 
-	/* deferring message */
 	if err := e.DeferCreateMessage(false); err != nil {
 		return err
 	}
 	defer musicbot.AutoRemove(e)
 
-	if err := c.PlayerManager.Stop(&c.Lavalink, e.Ctx, *e.GuildID()); err != nil {
+	player.ClearState()
+	if err := player.StopAudio(e.Ctx); err != nil {
 		if _, updateErr := e.UpdateInteractionResponse(discord.MessageUpdate{
 			Content: json.Ptr("Failed to stop player."),
 		}); updateErr != nil {
 			musicbot.LogUpdateError(updateErr, e.GuildID().String(), e.User().ID.String())
 		}
+		return err
 	}
 
 	if _, updateErr := e.UpdateInteractionResponse(discord.MessageUpdate{
-		Embeds: &[]discord.Embed{{Description: "⏹️ Stopped playing"}},
+		Embeds: &[]discord.Embed{{Description: "⏹️ Stopped playing and cleared the queue."}},
 	}); updateErr != nil {
 		musicbot.LogUpdateError(updateErr, e.GuildID().String(), e.User().ID.String())
 	}

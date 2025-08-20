@@ -49,3 +49,13 @@ func LogCommandError(err error, command string, guildID string, userID string) {
 		slog.String("user_id", userID),
 	)
 }
+
+func LogDeleteError(err error, guildID string, channelID string, messageID string) {
+	/* log an error when a failed attempt to delete a message occurs. */
+	slog.Error("failed to delete message",
+		slog.Any("error", err),
+		slog.String("guild_id", guildID),
+		slog.String("channel_id", channelID),
+		slog.String("message_id", messageID),
+	)
+}

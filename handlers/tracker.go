@@ -59,7 +59,7 @@ func (h *TrackerHandler) broadcastUpdate() {
 func (h *TrackerHandler) OnTrackStart(p disgolink.Player, event lavalink.TrackStartEvent) {
 	h.mutex.Lock()
 	defer h.mutex.Unlock()
-	if p.GuildID() == h.GuildID && *p.ChannelID() == h.ChannelID {
+	if p.GuildID() == h.GuildID && p.ChannelID() != nil && *p.ChannelID() == h.ChannelID {
 		h.track = event.Track
 		h.isPlaying = true
 		h.track.Info.Position = 0 // Reset position to 0 on track start
@@ -84,8 +84,9 @@ func (h *TrackerHandler) OnTrackEnd(p disgolink.Player, event lavalink.TrackEndE
 func (h *TrackerHandler) OnPlayerUpdate(p disgolink.Player, event lavalink.PlayerUpdateMessage) {
 	h.mutex.Lock()
 	defer h.mutex.Unlock()
-	if p.GuildID() == h.GuildID && *p.ChannelID() == h.ChannelID && h.isPlaying {
-		if event.State.Connected {
+
+	if p.GuildID() == h.GuildID && event.State.Connected && p.ChannelID() != nil && *p.ChannelID() == h.ChannelID {
+		if h.isPlaying {
 			/* update player position if still connected */
 			h.track.Info.Position = event.State.Position
 			h.broadcastUpdate()

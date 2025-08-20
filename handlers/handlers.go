@@ -3,7 +3,6 @@ package handlers
 import (
 	"MusicCatGo/musicbot"
 	"context"
-	"fmt"
 	"log/slog"
 	"time"
 
@@ -18,16 +17,23 @@ type Handlers struct {
 }
 
 func (h *Handlers) OnVoiceStateUpdate(event *events.GuildVoiceStateUpdate) {
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	/* user updating voice state */
 	if event.VoiceState.UserID != h.Client.ApplicationID() {
 		botVoiceState, ok := h.Client.Caches().VoiceState(event.VoiceState.GuildID, h.Client.ApplicationID())
 		if !ok || event.OldVoiceState.ChannelID == nil {
+			/* bot isn't in voice channel or just joined */
 			return
 		}
 
 		var (
-			voiceUsers     int
-			userDeafened   bool
-			userUndeafened bool
+			voiceUsers       int
+			userDeafened     bool
+			userUndeafened   bool
+			player, playerOk = h.PlayerManager.GetPlayer(event.VoiceState.GuildID)
 		)
 
 		h.Client.Caches().VoiceStatesForEach(event.VoiceState.GuildID, func(vs discord.VoiceState) {
@@ -43,78 +49,92 @@ func (h *Handlers) OnVoiceStateUpdate(event *events.GuildVoiceStateUpdate) {
 			}
 		})
 		if voiceUsers <= 1 {
-			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-			defer cancel()
-
-			h.PlayerManager.Stop(&h.Lavalink, ctx, event.VoiceState.GuildID)
+			/* there is only bot left in voice chat */
+			if playerOk {
+				player.ClearState()
+				if err := player.StopAudio(ctx); err != nil {
+					slog.Error("failed to stop audio",
+						slog.Any("error", err), slog.Any("guild_id", event.VoiceState.GuildID))
+				}
+			}
 
 			if err := h.Client.UpdateVoiceState(ctx, event.VoiceState.GuildID, nil, false, false); err != nil {
-				slog.Error("failed to disconnect from voice channel", slog.Any("error", err))
+				slog.Error("failed to disconnect from voice channel",
+					slog.Any("error", err), slog.Any("guild_id", event.VoiceState.GuildID))
 			}
 		} else if voiceUsers == 2 {
-			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-			defer cancel()
-
-			if userDeafened {
-				h.PlayerManager.Pause(&h.Lavalink, ctx, event.VoiceState.GuildID)
-			} else if userUndeafened {
-				h.PlayerManager.Resume(&h.Lavalink, ctx, event.VoiceState.GuildID)
+			/* there is bot and single user
+			-> user owns control of playback with "Deafen" button */
+			if playerOk && userDeafened {
+				player.Pause(ctx)
+			} else if playerOk && userUndeafened {
+				player.Resume(ctx)
 			}
 		}
-		return
+	} else {
+		h.Lavalink.OnVoiceStateUpdate(
+			ctx, event.VoiceState.GuildID,
+			event.VoiceState.ChannelID, event.VoiceState.SessionID)
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	h.Lavalink.OnVoiceStateUpdate(ctx, event.VoiceState.GuildID, event.VoiceState.ChannelID, event.VoiceState.SessionID)
 }
 
 func (h *Handlers) OnVoiceServerUpdate(event *events.VoiceServerUpdate) {
-	if event.Endpoint == nil {
-		return
+	if event.Endpoint != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		h.Lavalink.OnVoiceServerUpdate(ctx, event.GuildID, event.Token, *event.Endpoint)
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	h.Lavalink.OnVoiceServerUpdate(ctx, event.GuildID, event.Token, *event.Endpoint)
 }
 
 func (h *Handlers) OnTrackStart(p disgolink.Player, event lavalink.TrackStartEvent) {
 
-	state, ok := h.PlayerManager.GetState(p.GuildID())
-	if !ok || state.ChannelID() == 0 {
+	player, ok := h.PlayerManager.GetPlayer(p.GuildID())
+	if !ok || player.ChannelID() == 0 {
+		/* player is not playing or channel ID not set */
 		return
 	}
 
-	playerEmbed := createPlayerEmbed(event.Track, state)
-	playerMessage, err := h.Client.Rest().CreateMessage(state.ChannelID(), playerEmbed)
+	playerEmbed := createPlayerEmbed(event.Track, player.IsPaused(), player.Shuffle(), player.Loop())
+	playerMessage, err := h.Client.Rest().CreateMessage(player.ChannelID(), playerEmbed)
 	if err != nil {
-		slog.Error(fmt.Sprintf("failed to send message %s", err.Error()))
+		slog.Error("failed to send player embed",
+			slog.Any("error", err.Error()), slog.Any("guild_id", p.GuildID()))
 		return
 	}
-	state.SetMessageID(playerMessage.ID)
+	player.SetMessage(playerMessage) /* update message */
 }
 
 func (h *Handlers) OnTrackEnd(p disgolink.Player, event lavalink.TrackEndEvent) {
 
-	state, ok := h.PlayerManager.GetState(p.GuildID())
-	if !ok || state.ChannelID() == 0 || state.MessageID() == 0 {
-		slog.Error("failed to fetch old player message data")
+	player, ok := h.PlayerManager.GetPlayer(p.GuildID())
+	if !ok || player.PlayerMessage() == nil {
+		slog.Error("failed to fetch old player message data",
+			slog.Any("guild_id", p.GuildID()))
 		return
 	}
 
-	if err := h.Client.Rest().DeleteMessage(state.ChannelID(), state.MessageID()); err != nil {
-		slog.Error("failed to delete old player message")
+	var (
+		playerMessage = player.PlayerMessage()
+		channelId     = playerMessage.ChannelID
+		messageId     = playerMessage.ID
+	)
+	if err := h.Client.Rest().DeleteMessage(channelId, messageId); err != nil {
+		slog.Error("failed to delete old player message",
+			slog.Any("error", err.Error()),
+			slog.Any("guild_id", p.GuildID()),
+			slog.Any("channel_id", channelId),
+			slog.Any("message_id", messageId),
+		)
 	}
 
-	if !event.Reason.MayStartNext() {
-		return
-	}
-	track, ok := h.PlayerManager.Next(p.GuildID())
-	if !ok {
-		return
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	if err := p.Update(ctx, lavalink.WithTrack(track)); err != nil {
-		slog.Error("failed to send message")
+	if event.Reason.MayStartNext() {
+		/* starting next track in queue */
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		if err := player.PlayNext(ctx); err != nil {
+			slog.Error("failed to play next track in queue",
+				slog.Any("error", err.Error()),
+				slog.Any("guild_id", p.GuildID()))
+		}
 	}
 }

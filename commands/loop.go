@@ -13,7 +13,8 @@ func (c *Commands) Loop(data discord.SlashCommandInteractionData, e *handler.Com
 		mode string = data.String("mode")
 	)
 
-	if !c.PlayerManager.IsPlaying(*e.GuildID()) {
+	player, ok := c.PlayerManager.GetPlayer(*e.GuildID())
+	if !ok || !player.IsPlaying() {
 		if sendErr := e.CreateMessage(discord.MessageCreate{
 			Content: "Player is not playing.",
 			Flags:   discord.MessageFlagEphemeral,
@@ -24,13 +25,13 @@ func (c *Commands) Loop(data discord.SlashCommandInteractionData, e *handler.Com
 	}
 
 	if mode == string(musicbot.LoopNone) {
-		c.PlayerManager.SetLoop(*e.GuildID(), musicbot.LoopNone)
+		player.SetLoop(musicbot.LoopNone)
 		body = "⏭️ Disable loop"
 	} else if mode == string(musicbot.LoopTrack) {
-		c.PlayerManager.SetLoop(*e.GuildID(), musicbot.LoopTrack)
+		player.SetLoop(musicbot.LoopTrack)
 		body = "🔂 Enabled Track loop"
 	} else {
-		c.PlayerManager.SetLoop(*e.GuildID(), musicbot.LoopQueue)
+		player.SetLoop(musicbot.LoopQueue)
 		body = "🔁 Enabled Queue loop"
 	}
 

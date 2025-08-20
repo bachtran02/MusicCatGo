@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/disgoorg/disgo/handler"
-	"github.com/disgoorg/disgolink/v3/disgolink"
 	"github.com/disgoorg/disgolink/v3/lavalink"
 	"github.com/disgoorg/lavasrc-plugin"
 )
@@ -36,7 +35,9 @@ var (
 
 func AutoRemove(e *handler.CommandEvent) {
 	time.AfterFunc(deleteAfter*time.Second, func() {
-		e.DeleteInteractionResponse()
+		if err := e.DeleteInteractionResponse(); err != nil {
+			LogDeleteError(err, e.GuildID().String(), e.Channel().ID().String(), "")
+		}
 	})
 }
 
@@ -67,7 +68,7 @@ func FormatTime(d lavalink.Duration) string {
 	}
 }
 
-func PlayerBar(player disgolink.Player) string {
+func PlayerBar(paused bool, track lavalink.Track, position lavalink.Duration) string {
 
 	var (
 		PlayPause string
@@ -75,22 +76,20 @@ func PlayerBar(player disgolink.Player) string {
 		Bar       string
 	)
 
-	if player.Paused() {
+	if paused {
 		PlayPause = resumePlayerEmoji
 	} else {
 		PlayPause = pausePlayerEmoji
 	}
 
-	if player.Track().Info.IsStream {
+	if track.Info.IsStream {
 		Playtime = "LIVE"
 		Bar = ProgressBar(0.99)
 	} else {
-		Playtime = fmt.Sprintf("`%s | %s`", FormatTime(player.Position()), FormatTime(player.Track().Info.Length))
-		Bar = ProgressBar(float32(player.Position()) / float32(player.Track().Info.Length))
+		Playtime = fmt.Sprintf("`%s | %s`", FormatTime(position), FormatTime(track.Info.Length))
+		Bar = ProgressBar(float32(position) / float32(track.Info.Length))
 	}
-
 	return fmt.Sprintf("%s %s `%s`", PlayPause, Bar, Playtime)
-
 }
 
 func ProgressBar(percent float32) string {

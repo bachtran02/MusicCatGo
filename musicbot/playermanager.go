@@ -3,159 +3,62 @@ package musicbot
 import (
 	"sync"
 
-	"github.com/disgoorg/disgolink/v3/lavalink"
+	"github.com/disgoorg/disgolink/v3/disgolink"
 	"github.com/disgoorg/snowflake/v2"
-	"golang.org/x/exp/rand"
 )
 
-func NewPlayerManager() *PlayerManager {
-	return &PlayerManager{
-		states: map[snowflake.ID]*PlayerState{},
-	}
-}
-
+// PlayerManager manages all the active guild players.
 type PlayerManager struct {
-	states map[snowflake.ID]*PlayerState
-	mu     sync.Mutex
+	// We need a reference to the disgolink client to create new players.
+	link disgolink.Client
+
+	players map[snowflake.ID]*Player
+	mu      sync.RWMutex
 }
 
-func (q *PlayerManager) GetState(guildID snowflake.ID) (*PlayerState, bool) {
-	q.mu.Lock()
-	defer q.mu.Unlock()
-
-	state, ok := q.states[guildID]
-	if !ok {
-		return nil, false
+// NewPlayerManager creates a new, empty PlayerManager.
+func NewPlayerManager(link disgolink.Client) *PlayerManager {
+	return &PlayerManager{
+		link:    link,
+		players: make(map[snowflake.ID]*Player),
 	}
-	return state, true
 }
 
-func (q *PlayerManager) Delete(guildID snowflake.ID) {
-	q.mu.Lock()
-	defer q.mu.Unlock()
+// GetPlayer retrieves an existing player for a guild.
+func (pm *PlayerManager) GetPlayer(guildID snowflake.ID) (*Player, bool) {
+	pm.mu.RLock()
+	defer pm.mu.RUnlock()
 
-	delete(q.states, guildID)
+	player, ok := pm.players[guildID]
+	return player, ok
 }
 
-func (q *PlayerManager) getOrCreateState(guildID snowflake.ID) *PlayerState {
-	state, ok := q.states[guildID]
-	if !ok {
-		state = &PlayerState{
-			loop:    LoopNone,
-			shuffle: false,
-		}
-		q.states[guildID] = state
-	}
-	return state
-}
+/* Retrieves an existing player or creates a new one. */
+func (pm *PlayerManager) GetOrCreatePlayer(guildID snowflake.ID) *Player {
+	pm.mu.Lock()
+	defer pm.mu.Unlock()
 
-func (q *PlayerManager) Add(guildID snowflake.ID, channelID snowflake.ID, tracks ...lavalink.Track) {
-	q.mu.Lock()
-	defer q.mu.Unlock()
-
-	state := q.getOrCreateState(guildID)
-	state.channelID = channelID
-	state.tracks = append(state.tracks, tracks...)
-}
-
-func (q *PlayerManager) AddNext(guildID snowflake.ID, channelID snowflake.ID, tracks ...lavalink.Track) {
-	q.mu.Lock()
-	defer q.mu.Unlock()
-
-	state := q.getOrCreateState(guildID)
-	state.channelID = channelID
-	state.tracks = append(tracks, state.tracks...)
-}
-
-func (q *PlayerManager) Next(guildID snowflake.ID) (lavalink.Track, bool) {
-	q.mu.Lock()
-	defer q.mu.Unlock()
-
-	player, ok := q.states[guildID]
-	if !ok || (len(player.tracks) == 0 && player.loop == LoopNone) {
-		player.current = lavalink.Track{}
-		return lavalink.Track{}, false
+	player, ok := pm.players[guildID]
+	if ok {
+		/* player already existed */
+		return player
 	}
 
-	var (
-		current_track = player.current // current track
-		next_track    lavalink.Track   // next track
-	)
+	/* Get the underlying disgolink player for the guild. */
+	linkPlayer := pm.link.Player(guildID)
 
-	if player.loop == LoopTrack && player.current.Encoded != "" {
-		/* repeating current track */
-		next_track = player.current
-	} else if len(player.tracks) > 0 {
-		/* selecting next track */
-		if player.shuffle == ShuffleOn {
-			/* select a random track from the queue */
-			i := rand.Intn(len(player.tracks))
-			next_track = player.tracks[i]
-			player.tracks = append(player.tracks[:i], player.tracks[i+1:]...)
-		} else {
-			/* select firt track from the queue */
-			next_track = player.tracks[0]
-			player.tracks = player.tracks[1:]
-		}
-		if player.loop == LoopQueue && next_track.Encoded != "" {
-			/* if in queue loop -> add next track back to queue */
-			player.tracks = append(player.tracks, next_track)
-		}
-		player.current = next_track                                  /* replace current with next track */
-		player.prevtracks = append(player.prevtracks, current_track) /* add old track to previous tracks */
-	}
-	return next_track, true
+	/* Create our new player controller. */
+	player = NewPlayer(guildID, linkPlayer)
+	pm.players[guildID] = player
+
+	return player
 }
 
-func (q *PlayerManager) Previous(guildID snowflake.ID) (lavalink.Track, bool) {
-	q.mu.Lock()
-	defer q.mu.Unlock()
+// DeletePlayer removes a player for a guild.
+// This should be called when the bot disconnects from a voice channel.
+func (pm *PlayerManager) DeletePlayer(guildID snowflake.ID) {
+	pm.mu.Lock()
+	defer pm.mu.Unlock()
 
-	player, ok := q.states[guildID]
-	if !ok || len(player.prevtracks) < 2 {
-		return lavalink.Track{}, false
-	}
-
-	prev_track := player.prevtracks[len(player.prevtracks)-1]
-	player.prevtracks = player.prevtracks[:len(player.prevtracks)-1]
-	player.tracks = append([]lavalink.Track{player.current}, player.tracks...)
-	player.current = prev_track
-
-	return prev_track, true
-}
-
-func (q *PlayerManager) RemoveTrack(guildID snowflake.ID, trackIndex int) (lavalink.Track, bool) {
-	q.mu.Lock()
-	defer q.mu.Unlock()
-
-	state, ok := q.states[guildID]
-	if !ok {
-		return lavalink.Track{}, false
-	}
-
-	removedTrack := state.tracks[trackIndex]
-	state.tracks = append(state.tracks[:trackIndex], state.tracks[trackIndex+1:]...)
-	return removedTrack, true
-}
-
-func (q *PlayerManager) Queue(guildID snowflake.ID) ([]lavalink.Track, bool) {
-	q.mu.Lock()
-	defer q.mu.Unlock()
-
-	player, ok := q.states[guildID]
-	if !ok || len(player.tracks) == 0 {
-		return []lavalink.Track{}, false
-	}
-	return player.tracks, true
-}
-
-func (q *PlayerManager) IsPlaying(guildID snowflake.ID) bool {
-	q.mu.Lock()
-	defer q.mu.Unlock()
-
-	state, ok := q.states[guildID]
-	if !ok {
-		return false
-	}
-	return state.current.Encoded != ""
+	delete(pm.players, guildID)
 }

@@ -11,7 +11,8 @@ import (
 
 func (c *Commands) Skip(_ discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
 
-	if !c.PlayerManager.IsPlaying(*e.GuildID()) {
+	player, ok := c.PlayerManager.GetPlayer(*e.GuildID())
+	if !ok || !player.IsPlaying() {
 		sendErr := e.CreateMessage(discord.MessageCreate{
 			Content: "Player is not playing.",
 			Flags:   discord.MessageFlagEphemeral,
@@ -30,7 +31,7 @@ func (c *Commands) Skip(_ discord.SlashCommandInteractionData, e *handler.Comman
 	}
 	defer musicbot.AutoRemove(e)
 
-	if err := c.PlayerManager.Skip(&c.Lavalink, e.Ctx, *e.GuildID()); err != nil {
+	if err := player.PlayNext(e.Ctx); err != nil {
 		if _, updateErr := e.UpdateInteractionResponse(discord.MessageUpdate{
 			Content: json.Ptr("Failed to skip track."),
 		}); updateErr != nil {

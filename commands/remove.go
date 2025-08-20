@@ -10,13 +10,16 @@ import (
 
 func (c *Commands) RemoveQueueTrackAutocomplete(e *handler.AutocompleteEvent) error {
 
-	queue, ok := c.PlayerManager.Queue(*e.GuildID())
-	if !ok || len(queue) == 0 {
+	player, ok := c.PlayerManager.GetPlayer(*e.GuildID())
+	if !ok || !player.IsPlaying() {
 		return e.AutocompleteResult(nil)
 	}
 
-	choices := make([]discord.AutocompleteChoice, 0)
-	limit := min(20, len(queue)) // can only remove one of next 20 tracks
+	var (
+		queue   = player.Queue()
+		choices = make([]discord.AutocompleteChoice, 0)
+		limit   = min(20, len(queue)) // can only remove one of next 20 tracks
+	)
 	for i, track := range queue[:limit] {
 		choices = append(choices, discord.AutocompleteChoiceInt{
 			Name:  fmt.Sprintf("%s - %s", track.Info.Title, track.Info.Author),
@@ -29,8 +32,8 @@ func (c *Commands) RemoveQueueTrackAutocomplete(e *handler.AutocompleteEvent) er
 func (c *Commands) RemoveQueueTrack(data discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
 	removeIndex := data.Int("track")
 
-	queue, ok := c.PlayerManager.Queue(*e.GuildID())
-	if !ok || len(queue) == 0 || removeIndex < 0 || removeIndex >= len(queue) {
+	player, ok := c.PlayerManager.GetPlayer(*e.GuildID())
+	if !ok || !player.IsPlaying() || removeIndex < 0 || removeIndex >= len(player.Queue()) {
 		if sendErr := e.CreateMessage(discord.MessageCreate{
 			Content: "Invalid index or no track to remove.",
 			Flags:   discord.MessageFlagEphemeral,
@@ -40,7 +43,7 @@ func (c *Commands) RemoveQueueTrack(data discord.SlashCommandInteractionData, e 
 		return nil
 	}
 
-	track, ok := c.PlayerManager.RemoveTrack(*e.GuildID(), removeIndex)
+	track, ok := player.RemoveFromQueue(removeIndex)
 	if !ok {
 		if sendErr := e.CreateMessage(discord.MessageCreate{
 			Content: "Failed to remove track.",

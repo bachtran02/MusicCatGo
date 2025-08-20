@@ -312,37 +312,28 @@ func HandlePlay(playOpts PlayOpts, e *handler.CommandEvent, c *Commands) error {
 		userData = UserData{
 			Requester: e.User().ID,
 		}
-		loop = musicbot.LoopNone
 	)
 
 	switch loadData := result.Data.(type) {
 	case lavalink.Track:
 		tracks = append(tracks, loadData)
-		embed = buildTrackEmbed(loadData, userData.Requester)
-		if playOpts.Loop == OptTrue {
-			loop = musicbot.LoopTrack
-		}
+		embed = buildTrackEmbed(loadData, e.User().ID)
 
 	case lavalink.Search:
 		track := loadData[0]
 		tracks = append(tracks, track)
-		embed = buildTrackEmbed(track, userData.Requester)
-		if playOpts.Loop == OptTrue {
-			loop = musicbot.LoopTrack
-		}
+		embed = buildTrackEmbed(track, e.User().ID)
 
 	case lavalink.Playlist:
+		/* shuffling playlist by default unless set to false */
 		if playOpts.Shuffle != OptFalse {
 			rand.Shuffle(len(loadData.Tracks), func(i, j int) {
 				loadData.Tracks[i], loadData.Tracks[j] = loadData.Tracks[j], loadData.Tracks[i]
 			})
 		}
-		if playOpts.Loop == OptTrue {
-			loop = musicbot.LoopQueue
-		}
 		tracks = append(tracks, loadData.Tracks...)
 		userData.PlaylistName = loadData.Info.Name
-		embed = buildPlaylistEmbed(loadData, userData.Requester)
+		embed = buildPlaylistEmbed(loadData, e.User().ID)
 
 	case lavalink.Empty:
 		if _, updateError := e.UpdateInteractionResponse(discord.MessageUpdate{
@@ -360,13 +351,18 @@ func HandlePlay(playOpts PlayOpts, e *handler.CommandEvent, c *Commands) error {
 		return loadData
 	}
 
+	/* update reply message with loaded track info */
 	if _, updateError := e.UpdateInteractionResponse(discord.MessageUpdate{
 		Embeds: &[]discord.Embed{embed},
 	}); updateError != nil {
 		musicbot.LogUpdateError(updateError, e.GuildID().String(), e.User().ID.String())
 	}
 
-	voiceState, _ := c.Client.Caches().VoiceState(*e.GuildID(), e.User().ID)
+	/* get the user's voice state and connect */
+	voiceState, ok := c.Client.Caches().VoiceState(*e.GuildID(), e.User().ID)
+	if !ok {
+		return errors.New("[unhandled] user not in a voice channel")
+	}
 	if err = c.Client.UpdateVoiceState(context.Background(), *e.GuildID(), voiceState.ChannelID, false, true); err != nil {
 		if fuMessage, sendErr := e.CreateFollowupMessage(discord.MessageCreate{
 			Content: "Failed to join voice channel.",
@@ -379,37 +375,41 @@ func HandlePlay(playOpts PlayOpts, e *handler.CommandEvent, c *Commands) error {
 		return err
 	}
 
+	/* assign user data to every requested track */
 	userDataRaw, _ := json.Marshal(userData)
 	for i := range tracks {
 		tracks[i].UserData = userDataRaw
 	}
 
+	/* get or create the player for this guild */
+	player := c.PlayerManager.GetOrCreatePlayer(*e.GuildID())
+	player.SetChannelID(e.Channel().ID()) /* setting channel ID */
+
+	/* add the new tracks to the queue */
 	if playOpts.PlayNext == OptTrue {
-		c.PlayerManager.AddNext(*e.GuildID(), e.Channel().ID(), tracks...)
+		player.AddToQueueNext(tracks...)
 	} else {
-		c.PlayerManager.Add(*e.GuildID(), e.Channel().ID(), tracks...)
+		player.AddToQueue(tracks...)
 	}
 
-	state, ok := c.PlayerManager.GetState(*e.GuildID())
-	if ok {
-		if playOpts.Loop != OptUnset {
-			state.SetLoop(loop)
-		}
-		if playOpts.Shuffle == OptTrue {
-			state.SetShuffle(musicbot.ShuffleOn)
-		}
-		if playOpts.Shuffle == OptFalse {
-			state.SetShuffle(musicbot.ShuffleOff)
-		}
+	/* set loop and shuffle options if provided */
+	switch playOpts.Loop {
+	case OptTrue:
+		player.SetLoop(musicbot.LoopQueue)
+	case OptFalse:
+		player.SetLoop(musicbot.LoopNone)
 	}
 
-	player := c.Lavalink.Player(*e.GuildID())
-	if player.Track() == nil {
-		/* player is not playing so play track */
-		track, _ := c.PlayerManager.Next(*e.GuildID())
-		playCtx, playCancel := context.WithTimeout(e.Ctx, 10*time.Second)
-		defer playCancel()
-		if err = player.Update(playCtx, lavalink.WithTrack(track)); err != nil {
+	switch playOpts.Shuffle {
+	case OptTrue:
+		player.SetShuffle(musicbot.ShuffleOn)
+	case OptFalse:
+		player.SetShuffle(musicbot.ShuffleOff)
+	}
+
+	/* if the player isn't playing, start it now */
+	if !player.IsPlaying() {
+		if err = player.PlayNext(e.Ctx); err != nil {
 			if fuMessage, sendErr := e.CreateFollowupMessage(discord.MessageCreate{
 				Content: "Failed to play track.",
 			}); sendErr != nil {

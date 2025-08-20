@@ -10,7 +10,8 @@ import (
 
 func (c *Commands) Pause(_ discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
 
-	if !c.PlayerManager.IsPlaying(*e.GuildID()) {
+	player, ok := c.PlayerManager.GetPlayer(*e.GuildID())
+	if !ok || !player.IsPlaying() {
 		if sendErr := e.CreateMessage(discord.MessageCreate{
 			Content: "Player is not playing.",
 			Flags:   discord.MessageFlagEphemeral,
@@ -20,13 +21,12 @@ func (c *Commands) Pause(_ discord.SlashCommandInteractionData, e *handler.Comma
 		return nil
 	}
 
-	/* defer sending message */
 	if err := e.DeferCreateMessage(false); err != nil {
 		return err
 	}
 	defer musicbot.AutoRemove(e)
 
-	if err := c.PlayerManager.Pause(&c.Lavalink, e.Ctx, *e.GuildID()); err != nil {
+	if err := player.Pause(e.Ctx); err != nil {
 		if _, updateErr := e.UpdateInteractionResponse(discord.MessageUpdate{
 			Content: json.Ptr("Failed to pause player."),
 		}); updateErr != nil {

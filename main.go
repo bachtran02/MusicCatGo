@@ -115,10 +115,7 @@ func main() {
 		"disgolink", disgolink.Version,
 	)
 
-	b := &musicbot.Bot{
-		Cfg:           cfg,
-		PlayerManager: *musicbot.NewPlayerManager(),
-	}
+	b := &musicbot.Bot{Cfg: cfg}
 	cmds := &commands.Commands{Bot: b}
 
 	r := handler.New()
@@ -208,6 +205,8 @@ func main() {
 		slog.Error("failed to create disgolink client", slog.Any("error", err))
 		os.Exit(-1)
 	}
+	/* link player manager to disgolink client */
+	b.PlayerManager = *musicbot.NewPlayerManager(b.Lavalink)
 
 	b.Db, err = musicbot.NewDB(cfg.DB, DBschema)
 	if err != nil {

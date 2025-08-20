@@ -4,6 +4,7 @@ import (
 	"MusicCatGo/commands"
 	"MusicCatGo/musicbot"
 	"context"
+	"time"
 
 	"github.com/disgoorg/disgo/discord"
 	"github.com/disgoorg/disgo/events"
@@ -28,50 +29,56 @@ const (
 
 func (h *Handlers) OnPlayerInteraction(event *events.ComponentInteractionCreate) {
 
-	state, ok := h.PlayerManager.GetState(*event.GuildID())
-	if !ok || state.MessageID() == 0 {
+	player, ok := h.PlayerManager.GetPlayer(*event.GuildID())
+	if !ok || !player.IsPlaying() {
+		/* player is not playing, player embed SHOULD HAVE BEEN deleted */
+		/* deleting player embed */
+		if err := h.Client.Rest().DeleteMessage(event.Message.ChannelID, event.Message.ID); err != nil {
+			musicbot.LogDeleteError(err, event.GuildID().String(),
+				event.Message.ChannelID.String(), event.Message.ID.String())
+		}
 		return
 	}
 
-	ctx := context.TODO()
-	buttonNameString := event.ComponentInteraction.ButtonInteractionData().CustomID()
-
+	var (
+		ctx, cancel      = context.WithTimeout(context.Background(), 10*time.Second)
+		buttonNameString = event.ComponentInteraction.ButtonInteractionData().CustomID()
+		buttonID         = ButtonID(buttonNameString)
+	)
+	defer cancel()
 	musicbot.LogPlayerInteraction(buttonNameString, event.GuildID().String(), event.User().ID.String())
 
-	switch ButtonID(buttonNameString) {
+	switch buttonID {
 	case PlayNext:
-		h.PlayerManager.Skip(&h.Lavalink, ctx, *event.GuildID())
+		player.PlayNext(ctx)
 	case StopPlayer:
-		h.PlayerManager.Stop(&h.Lavalink, ctx, *event.GuildID())
+		player.StopAudio(ctx)
+		player.ClearState()
 	case ResumePlayer:
-		h.PlayerManager.Resume(&h.Lavalink, ctx, *event.GuildID())
-		updatePlayerEmbed(state, event)
+		player.Resume(ctx)
 	case PausePlayer:
-		h.PlayerManager.Pause(&h.Lavalink, ctx, *event.GuildID())
-		updatePlayerEmbed(state, event)
+		player.Pause(ctx)
 	case PlayPrevious:
-		h.PlayerManager.PlayPrevious(&h.Lavalink, ctx, *event.GuildID())
-		updatePlayerEmbed(state, event)
+		player.PlayPrevious(ctx)
 	case ShuffleOn:
-		h.PlayerManager.SetShuffle(*event.GuildID(), musicbot.ShuffleOn)
-		updatePlayerEmbed(state, event)
+		player.SetShuffle(musicbot.ShuffleOn)
 	case ShuffleOff:
-		h.PlayerManager.SetShuffle(*event.GuildID(), musicbot.ShuffleOff)
-		updatePlayerEmbed(state, event)
+		player.SetShuffle(musicbot.ShuffleOff)
 	case LoopOff:
-		h.PlayerManager.SetLoop(*event.GuildID(), musicbot.LoopNone)
-		updatePlayerEmbed(state, event)
+		player.SetLoop(musicbot.LoopNone)
 	case LoopTrack:
-		h.PlayerManager.SetLoop(*event.GuildID(), musicbot.LoopTrack)
-		updatePlayerEmbed(state, event)
+		player.SetLoop(musicbot.LoopTrack)
 	case LoopQueue:
-		h.PlayerManager.SetLoop(*event.GuildID(), musicbot.LoopQueue)
-		updatePlayerEmbed(state, event)
+		player.SetLoop(musicbot.LoopQueue)
+	}
+
+	if buttonID != PlayNext && buttonID != PlayPrevious {
+		updatePlayerEmbed(player.IsPaused(), player.Shuffle(), player.Loop(), event)
 	}
 }
 
-func updatePlayerEmbed(state *musicbot.PlayerState, event *events.ComponentInteractionCreate) {
-	buttons := createButtons(state)
+func updatePlayerEmbed(paused bool, shuffle musicbot.ShuffleMode, loop musicbot.LoopMode, event *events.ComponentInteractionCreate) {
+	buttons := createButtons(paused, shuffle, loop)
 	messageBuilder := discord.NewMessageUpdateBuilder()
 	messageBuilder.
 		AddActionRow(buttons[0], buttons[1], buttons[2]).
@@ -80,23 +87,23 @@ func updatePlayerEmbed(state *musicbot.PlayerState, event *events.ComponentInter
 	event.UpdateMessage(messageBuilder.Build())
 }
 
-func createPlayerEmbed(track lavalink.Track, state *musicbot.PlayerState) discord.MessageCreate {
+func createPlayerEmbed(track lavalink.Track, paused bool, shuffle musicbot.ShuffleMode, loop musicbot.LoopMode) discord.MessageCreate {
 
 	embedBuilder := createEmbed(track)
 	messageBuilder := discord.NewMessageCreateBuilder().SetEmbeds(embedBuilder.Build())
-	return addButtonsNew(state, messageBuilder).Build()
+	return addButtonsNew(paused, shuffle, loop, messageBuilder).Build()
 }
 
-func addButtonsNew(state *musicbot.PlayerState, messageBuilder *discord.MessageCreateBuilder) *discord.MessageCreateBuilder {
+func addButtonsNew(paused bool, shuffle musicbot.ShuffleMode, loop musicbot.LoopMode, messageBuilder *discord.MessageCreateBuilder) *discord.MessageCreateBuilder {
 
-	buttons := createButtons(state)
+	buttons := createButtons(paused, shuffle, loop)
 
 	return messageBuilder.
 		AddActionRow(buttons[0], buttons[1], buttons[2]).
 		AddActionRow(buttons[3], buttons[4], buttons[5])
 }
 
-func createButtons(state *musicbot.PlayerState) []discord.ButtonComponent {
+func createButtons(paused bool, shuffle musicbot.ShuffleMode, loop musicbot.LoopMode) []discord.ButtonComponent {
 	var (
 		playPauseButton discord.ButtonComponent
 		repeatButton    discord.ButtonComponent
@@ -107,13 +114,13 @@ func createButtons(state *musicbot.PlayerState) []discord.ButtonComponent {
 		stopButton         = discord.NewSecondaryButton("", string(StopPlayer)).WithEmoji(discord.ComponentEmoji{ID: snowflake.ID(musicbot.STOP_PLAYER_EMOJI_ID)})
 	)
 
-	if state.Paused() {
+	if paused {
 		playPauseButton = discord.NewSecondaryButton("", string(ResumePlayer)).WithEmoji(discord.ComponentEmoji{ID: snowflake.ID(musicbot.RESUME_PLAYER_EMOJI_ID)})
 	} else {
 		playPauseButton = discord.NewSecondaryButton("", string(PausePlayer)).WithEmoji(discord.ComponentEmoji{ID: snowflake.ID(musicbot.PAUSE_PLAYER_EMOJI_ID)})
 	}
 
-	switch state.Loop() {
+	switch loop {
 	case musicbot.LoopNone:
 		repeatButton = discord.NewSecondaryButton("", string(LoopQueue)).WithEmoji(discord.ComponentEmoji{ID: snowflake.ID(musicbot.LOOP_OFF_EMOJI_ID)})
 	case musicbot.LoopQueue:
@@ -122,7 +129,7 @@ func createButtons(state *musicbot.PlayerState) []discord.ButtonComponent {
 		repeatButton = discord.NewSecondaryButton("", string(LoopOff)).WithEmoji(discord.ComponentEmoji{ID: snowflake.ID(musicbot.LOOP_TRACK_EMOJI_ID)})
 	}
 
-	if state.Shuffle() {
+	if shuffle {
 		shuffleButton = discord.NewSecondaryButton("", string(ShuffleOff)).WithEmoji(discord.ComponentEmoji{ID: snowflake.ID(musicbot.SHUFFLE_ON_EMOJI_ID)})
 	} else {
 		shuffleButton = discord.NewSecondaryButton("", string(ShuffleOn)).WithEmoji(discord.ComponentEmoji{ID: snowflake.ID(musicbot.SHUFFLE_OFF_EMOJI_ID)})
@@ -154,3 +161,37 @@ func createEmbed(track lavalink.Track) discord.EmbedBuilder {
 			playtime, userData.Requester).
 		SetThumbnail(*track.Info.ArtworkURL)
 }
+
+// func createRecentlyPlayedEmbed(prevTracks []lavalink.Track) discord.MessageCreate {
+
+// 	var (
+// 		numTracks = len(prevTracks)
+// 		content   string
+// 	)
+
+// 	for i := numTracks - 1; i >= 0; i-- {
+// 		// var (
+// 		// 	Playtime string
+// 		// 	track    = prevTracks[i]
+// 		// )
+
+// 		fmt.Println(prevTracks[i])
+
+// 		// if track.Info.IsStream {
+// 		// 	Playtime = "`LIVE`"
+// 		// } else {
+// 		// 	Playtime = musicbot.FormatTime(track.Info.Length)
+// 		// }
+// 		// content += fmt.Sprintf("\n%d. [%s](%s) `%s`",
+// 		// 	numTracks-i, track.Info.Title, *track.Info.URI, Playtime)
+
+// 		// if track.Info.SourceName == "deezer" || track.Info.SourceName == "spotify" {
+// 		// 	content += " " + track.Info.Author
+// 		// }
+// 	}
+
+// 	return discord.NewMessageCreateBuilder().
+// 		SetEmbeds(discord.NewEmbedBuilder().
+// 			SetTitle("Recently Played Tracks").
+// 			SetDescription(content).Build()).Build()
+// }

@@ -8,43 +8,102 @@ import (
 	"github.com/disgoorg/disgo/handler"
 )
 
-func (cmd *Commands) Queue(data discord.SlashCommandInteractionData, event *handler.CommandEvent) error {
+func (c *Commands) Now(data discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
 
-	player := cmd.Lavalink.Player(*event.GuildID())
-
-	track := player.Track()
-	if track == nil {
-		if sendErr := event.CreateMessage(discord.MessageCreate{
+	player, ok := c.PlayerManager.GetPlayer(*e.GuildID())
+	if !ok || !player.IsPlaying() {
+		if sendErr := e.CreateMessage(discord.MessageCreate{
 			Content: "Player is not playing.",
 			Flags:   discord.MessageFlagEphemeral,
 		}); sendErr != nil {
-			musicbot.LogSendError(sendErr, event.GuildID().String(), event.User().ID.String(), true)
+			musicbot.LogSendError(sendErr, e.GuildID().String(), e.User().ID.String(), true)
 		}
 		return nil
 	}
 
-	var userData UserData
+	var (
+		track    = player.Current()
+		queue    = player.Queue()
+		paused   = player.IsPaused()
+		position = player.Position()
+		userData UserData
+	)
 	_ = track.UserData.Unmarshal(&userData)
 
 	content := fmt.Sprintf("[%s](%s)\n%s\n%s\n\nRequested: <@!%s>\n",
-		track.Info.Title, *track.Info.URI, track.Info.Author, musicbot.PlayerBar(player), userData.Requester)
+		track.Info.Title, *track.Info.URI, track.Info.Author,
+		musicbot.PlayerBar(paused, track, position), userData.Requester)
 
-	if tracks, ok := cmd.PlayerManager.Queue(*event.GuildID()); ok {
-		content += fmt.Sprintf("\n**Up next:** `%d track(s)`", len(tracks))
-		limit := min(10, len(tracks))
-		for i, track := range tracks[:limit] {
-			var Playtime string
-			if track.Info.IsStream {
-				Playtime = "`LIVE`"
-			} else {
-				Playtime = musicbot.FormatTime(track.Info.Length)
-			}
-			content += fmt.Sprintf("\n%d. [%s](%s) `%s`",
-				i+1, track.Info.Title, *track.Info.URI, Playtime)
+	if len(queue) >= 1 {
+		content += "\n**Up next:**"
+		nextTrack := queue[0]
+		var Playtime string
+		if nextTrack.Info.IsStream {
+			Playtime = "`LIVE`"
+		} else {
+			Playtime = musicbot.FormatTime(nextTrack.Info.Length)
+		}
+		content += fmt.Sprintf("\n[%s](%s) `%s`",
+			nextTrack.Info.Title, *nextTrack.Info.URI, Playtime)
 
-			if track.Info.SourceName == "deezer" || track.Info.SourceName == "spotify" {
-				content += " " + track.Info.Author
-			}
+		if nextTrack.Info.SourceName == "deezer" || nextTrack.Info.SourceName == "spotify" {
+			content += " " + nextTrack.Info.Author
+		}
+	}
+
+	embed := discord.NewEmbedBuilder().
+		SetTitle("Current").
+		SetDescription(content).
+		SetThumbnail(*track.Info.ArtworkURL)
+
+	if sendErr := e.CreateMessage(discord.MessageCreate{
+		Embeds: []discord.Embed{embed.Build()},
+	}); sendErr != nil {
+		musicbot.LogSendError(sendErr, e.GuildID().String(), e.User().ID.String(), false)
+	}
+	return nil
+}
+
+func (c *Commands) Queue(data discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
+
+	player, ok := c.PlayerManager.GetPlayer(*e.GuildID())
+	if !ok || !player.IsPlaying() {
+		if sendErr := e.CreateMessage(discord.MessageCreate{
+			Content: "Player is not playing.",
+			Flags:   discord.MessageFlagEphemeral,
+		}); sendErr != nil {
+			musicbot.LogSendError(sendErr, e.GuildID().String(), e.User().ID.String(), true)
+		}
+		return nil
+	}
+
+	var (
+		track    = player.Current()
+		queue    = player.Queue()
+		paused   = player.IsPaused()
+		position = player.Position()
+		userData UserData
+	)
+	_ = track.UserData.Unmarshal(&userData)
+
+	content := fmt.Sprintf("[%s](%s)\n%s\n%s\n\nRequested: <@!%s>\n",
+		track.Info.Title, *track.Info.URI, track.Info.Author,
+		musicbot.PlayerBar(paused, track, position), userData.Requester)
+
+	content += fmt.Sprintf("\n**Up next:** `%d track(s)`", len(queue))
+	limit := min(10, len(queue))
+	for i, track := range queue[:limit] {
+		var Playtime string
+		if track.Info.IsStream {
+			Playtime = "`LIVE`"
+		} else {
+			Playtime = musicbot.FormatTime(track.Info.Length)
+		}
+		content += fmt.Sprintf("\n%d. [%s](%s) `%s`",
+			i+1, track.Info.Title, *track.Info.URI, Playtime)
+
+		if track.Info.SourceName == "deezer" || track.Info.SourceName == "spotify" {
+			content += " " + track.Info.Author
 		}
 	}
 
@@ -53,10 +112,10 @@ func (cmd *Commands) Queue(data discord.SlashCommandInteractionData, event *hand
 		SetDescription(content).
 		SetThumbnail(*track.Info.ArtworkURL)
 
-	if sendErr := event.CreateMessage(discord.MessageCreate{
+	if sendErr := e.CreateMessage(discord.MessageCreate{
 		Embeds: []discord.Embed{embed.Build()},
 	}); sendErr != nil {
-		musicbot.LogSendError(sendErr, event.GuildID().String(), event.User().ID.String(), false)
+		musicbot.LogSendError(sendErr, e.GuildID().String(), e.User().ID.String(), false)
 	}
 	return nil
 }

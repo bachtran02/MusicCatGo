@@ -2,9 +2,7 @@ package commands
 
 import (
 	"MusicCatGo/musicbot"
-	"context"
 	"fmt"
-	"time"
 
 	"github.com/disgoorg/disgo/discord"
 	"github.com/disgoorg/disgo/handler"
@@ -13,15 +11,15 @@ import (
 )
 
 func (c *Commands) Seek(data discord.SlashCommandInteractionData, e *handler.CommandEvent) error {
-	var (
-		position = data.String("position")
-	)
+	var position = data.String("position")
 
-	if !c.PlayerManager.IsPlaying(*e.GuildID()) {
-		if sendErr := e.CreateMessage(discord.MessageCreate{
+	player, ok := c.PlayerManager.GetPlayer(*e.GuildID())
+	if !ok || !player.IsPlaying() {
+		sendErr := e.CreateMessage(discord.MessageCreate{
 			Content: "Player is not playing.",
 			Flags:   discord.MessageFlagEphemeral,
-		}); sendErr != nil {
+		})
+		if sendErr != nil {
 			musicbot.LogSendError(sendErr, e.GuildID().String(), e.User().ID.String(), true)
 		}
 		return nil
@@ -45,11 +43,7 @@ func (c *Commands) Seek(data discord.SlashCommandInteractionData, e *handler.Com
 	}
 	defer musicbot.AutoRemove(e)
 
-	ctx, cancel := context.WithTimeout(e.Ctx, 10*time.Second)
-	defer cancel()
-	player := c.Lavalink.ExistingPlayer(*e.GuildID())
-
-	if player.Track().Info.IsStream {
+	if player.Current().Info.IsStream {
 		if _, updateErr := e.UpdateInteractionResponse(discord.MessageUpdate{
 			Content: json.Ptr("Track is unseekable."),
 		}); updateErr != nil {
@@ -59,7 +53,7 @@ func (c *Commands) Seek(data discord.SlashCommandInteractionData, e *handler.Com
 	}
 
 	newPosition := lavalink.Duration(s*int(lavalink.Second) + m*int(lavalink.Minute) + h*int(lavalink.Hour))
-	if err := player.Update(ctx, lavalink.WithPosition(newPosition)); err != nil {
+	if err := player.Seek(e.Ctx, newPosition); err != nil {
 		if _, updateErr := e.UpdateInteractionResponse(discord.MessageUpdate{
 			Content: json.Ptr("Failed to seek to position."),
 		}); updateErr != nil {
