@@ -13,6 +13,7 @@ import (
 
 type TrackerResponse struct {
 	IsPlaying bool               `json:"is_playing"`
+	IsPaused  bool               `json:"is_paused,omitempty"`
 	TrackInfo lavalink.TrackInfo `json:"track,omitempty"`
 }
 
@@ -22,6 +23,7 @@ type TrackerHandler struct {
 	WsServer  *musicbot.WsServer
 	track     lavalink.Track
 	isPlaying bool
+	isPaused  bool
 	mutex     sync.Mutex
 }
 
@@ -48,6 +50,7 @@ func (h *TrackerHandler) broadcastUpdate() {
 	jsonResponse, err := json.Marshal(
 		TrackerResponse{
 			IsPlaying: h.isPlaying,
+			IsPaused:  h.isPaused,
 			TrackInfo: h.track.Info,
 		})
 	if err != nil {
@@ -87,8 +90,8 @@ func (h *TrackerHandler) OnPlayerUpdate(p disgolink.Player, event lavalink.Playe
 
 	if p.GuildID() == h.GuildID && event.State.Connected && p.ChannelID() != nil && *p.ChannelID() == h.ChannelID {
 		if h.isPlaying {
-			/* update player position if still connected */
-			h.track.Info.Position = event.State.Position
+			h.isPaused = p.Paused()                      /* whether player is paused */
+			h.track.Info.Position = event.State.Position /* update player position */
 			h.broadcastUpdate()
 		}
 	}
