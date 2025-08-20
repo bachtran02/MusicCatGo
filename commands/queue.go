@@ -90,9 +90,12 @@ func (c *Commands) Queue(data discord.SlashCommandInteractionData, e *handler.Co
 		track.Info.Title, *track.Info.URI, track.Info.Author,
 		musicbot.PlayerBar(paused, track, position), userData.Requester)
 
-	content += fmt.Sprintf("\n**Up next:** `%d track(s)`", len(queue))
 	limit := min(10, len(queue))
 	for i, track := range queue[:limit] {
+		if i == 0 {
+			content += fmt.Sprintf("\n**Up next:** `%d track(s)`", len(queue))
+		}
+
 		var Playtime string
 		if track.Info.IsStream {
 			Playtime = "`LIVE`"

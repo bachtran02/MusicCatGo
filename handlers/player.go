@@ -4,6 +4,8 @@ import (
 	"MusicCatGo/commands"
 	"MusicCatGo/musicbot"
 	"context"
+	"fmt"
+	"sort"
 	"time"
 
 	"github.com/disgoorg/disgo/discord"
@@ -72,7 +74,7 @@ func (h *Handlers) OnPlayerInteraction(event *events.ComponentInteractionCreate)
 		player.SetLoop(musicbot.LoopQueue)
 	}
 
-	if buttonID != PlayNext && buttonID != PlayPrevious {
+	if buttonID != PlayNext && buttonID != StopPlayer {
 		updatePlayerEmbed(player.IsPaused(), player.Shuffle(), player.Loop(), event)
 	}
 }
@@ -162,36 +164,58 @@ func createEmbed(track lavalink.Track) discord.EmbedBuilder {
 		SetThumbnail(*track.Info.ArtworkURL)
 }
 
-// func createRecentlyPlayedEmbed(prevTracks []lavalink.Track) discord.MessageCreate {
+func createRecentlyPlayedEmbed(prevTracks []lavalink.Track, startTime time.Time) discord.MessageCreate {
 
-// 	var (
-// 		numTracks = len(prevTracks)
-// 		content   string
-// 	)
+	var (
+		boolTrue            = true
+		numTracks           = len(prevTracks)
+		requesterMap        = make(map[snowflake.ID]int)
+		lastTrack           = prevTracks[0]
+		userData            commands.UserData
+		recentlyPlayedField string
+		requesterField      string
+	)
 
-// 	for i := numTracks - 1; i >= 0; i-- {
-// 		// var (
-// 		// 	Playtime string
-// 		// 	track    = prevTracks[i]
-// 		// )
+	for i := range numTracks {
+		var (
+			track = prevTracks[i]
+			_     = track.UserData.Unmarshal(&userData)
+		)
 
-// 		fmt.Println(prevTracks[i])
+		if i < 5 {
+			recentlyPlayedField += fmt.Sprintf("\n%d. [%s](%s)",
+				i+1, track.Info.Title, *track.Info.URI)
+		}
+		requesterMap[snowflake.ID(userData.Requester)]++
+	}
 
-// 		// if track.Info.IsStream {
-// 		// 	Playtime = "`LIVE`"
-// 		// } else {
-// 		// 	Playtime = musicbot.FormatTime(track.Info.Length)
-// 		// }
-// 		// content += fmt.Sprintf("\n%d. [%s](%s) `%s`",
-// 		// 	numTracks-i, track.Info.Title, *track.Info.URI, Playtime)
+	/* sort requester */
+	keys := make([]snowflake.ID, 0, len(requesterMap))
+	for k := range requesterMap {
+		keys = append(keys, k)
+	}
+	sort.Slice(keys, func(i, j int) bool {
+		return requesterMap[keys[i]] > requesterMap[keys[j]] // descending by key
+	})
 
-// 		// if track.Info.SourceName == "deezer" || track.Info.SourceName == "spotify" {
-// 		// 	content += " " + track.Info.Author
-// 		// }
-// 	}
+	for i := 0; i < min(5, len(keys)); i++ {
+		requesterField += fmt.Sprintf("%d. <@%s>\n", i+1, keys[i])
+	}
 
-// 	return discord.NewMessageCreateBuilder().
-// 		SetEmbeds(discord.NewEmbedBuilder().
-// 			SetTitle("Recently Played Tracks").
-// 			SetDescription(content).Build()).Build()
-// }
+	return discord.NewMessageCreateBuilder().
+		SetEmbeds(discord.NewEmbedBuilder().
+			SetTitle("Current Session").
+			SetDescription(fmt.Sprintf("**Started:** <t:%d:R>", startTime.Unix())).
+			SetFields(
+				discord.EmbedField{
+					Name:   "Recent Tracks",
+					Value:  recentlyPlayedField,
+					Inline: &boolTrue,
+				},
+				discord.EmbedField{
+					Name:   "Top Requesters",
+					Value:  requesterField,
+					Inline: &boolTrue,
+				},
+			).SetThumbnail(*lastTrack.Info.ArtworkURL).Build()).Build()
+}

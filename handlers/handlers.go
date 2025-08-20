@@ -50,14 +50,6 @@ func (h *Handlers) OnVoiceStateUpdate(event *events.GuildVoiceStateUpdate) {
 		})
 		if voiceUsers <= 1 {
 			/* there is only bot left in voice chat */
-			if playerOk {
-				player.ClearState()
-				if err := player.StopAudio(ctx); err != nil {
-					slog.Error("failed to stop audio",
-						slog.Any("error", err), slog.Any("guild_id", event.VoiceState.GuildID))
-				}
-			}
-
 			if err := h.Client.UpdateVoiceState(ctx, event.VoiceState.GuildID, nil, false, false); err != nil {
 				slog.Error("failed to disconnect from voice channel",
 					slog.Any("error", err), slog.Any("guild_id", event.VoiceState.GuildID))
@@ -75,6 +67,25 @@ func (h *Handlers) OnVoiceStateUpdate(event *events.GuildVoiceStateUpdate) {
 		h.Lavalink.OnVoiceStateUpdate(
 			ctx, event.VoiceState.GuildID,
 			event.VoiceState.ChannelID, event.VoiceState.SessionID)
+
+		if event.VoiceState.ChannelID == nil {
+			/* bot is disconnected */
+			player, playerOk := h.PlayerManager.GetPlayer(event.VoiceState.GuildID)
+			if playerOk {
+				if err := player.StopAudio(ctx); err != nil {
+					slog.Error("failed to stop audio",
+						slog.Any("error", err), slog.Any("guild_id", event.VoiceState.GuildID))
+				}
+				player.ClearState()
+				/* remove session messasge if exists */
+				if player.SessionMessage() != nil {
+					if err := h.Client.Rest().DeleteMessage(player.ChannelID(), player.SessionMessage().ID); err != nil {
+						musicbot.LogDeleteError(err, event.VoiceState.GuildID.String(), player.ChannelID().String(), player.SessionMessage().ID.String())
+					}
+				}
+				h.PlayerManager.DeletePlayer(event.VoiceState.GuildID)
+			}
+		}
 	}
 }
 
@@ -92,6 +103,14 @@ func (h *Handlers) OnTrackStart(p disgolink.Player, event lavalink.TrackStartEve
 	if !ok || player.ChannelID() == 0 {
 		/* player is not playing or channel ID not set */
 		return
+	}
+
+	/* if there is session message */
+	if player.SessionMessage() != nil {
+		if err := h.Client.Rest().DeleteMessage(player.ChannelID(), player.SessionMessage().ID); err != nil {
+			musicbot.LogDeleteError(err, p.GuildID().String(), player.ChannelID().String(), player.SessionMessage().ID.String())
+		}
+		player.SetSessionMessage(nil) /* clear session message */
 	}
 
 	playerEmbed := createPlayerEmbed(event.Track, player.IsPaused(), player.Shuffle(), player.Loop())
@@ -119,12 +138,7 @@ func (h *Handlers) OnTrackEnd(p disgolink.Player, event lavalink.TrackEndEvent) 
 		messageId     = playerMessage.ID
 	)
 	if err := h.Client.Rest().DeleteMessage(channelId, messageId); err != nil {
-		slog.Error("failed to delete old player message",
-			slog.Any("error", err.Error()),
-			slog.Any("guild_id", p.GuildID()),
-			slog.Any("channel_id", channelId),
-			slog.Any("message_id", messageId),
-		)
+		musicbot.LogDeleteError(err, p.GuildID().String(), channelId.String(), messageId.String())
 	}
 
 	if event.Reason.MayStartNext() {
@@ -136,5 +150,17 @@ func (h *Handlers) OnTrackEnd(p disgolink.Player, event lavalink.TrackEndEvent) 
 				slog.Any("error", err.Error()),
 				slog.Any("guild_id", p.GuildID()))
 		}
+	}
+
+	if len(player.PreviousTracks()) > 0 {
+		/* player is currently in idle */
+		recentlyPlayedEmbed := createRecentlyPlayedEmbed(player.PreviousTracks(), player.SessionStartTime())
+		sessionMessage, err := h.Client.Rest().CreateMessage(player.ChannelID(), recentlyPlayedEmbed)
+		if err != nil {
+			slog.Error("failed to create session message",
+				slog.Any("error", err.Error()),
+				slog.Any("guild_id", p.GuildID()))
+		}
+		player.SetSessionMessage(sessionMessage)
 	}
 }

@@ -3,6 +3,7 @@ package musicbot
 import (
 	"context"
 	"math/rand"
+	"time"
 
 	"github.com/disgoorg/disgo/discord"
 	"github.com/disgoorg/disgolink/v3/disgolink"
@@ -31,30 +32,34 @@ type Player struct {
 	disgoPlayer disgolink.Player
 
 	/* Application-specific state */
-	guildID       snowflake.ID
-	channelID     snowflake.ID
-	playerMessage *discord.Message /* The message that contains the player controls */
-	current       *lavalink.Track
-	tracks        []lavalink.Track
-	prevtracks    []lavalink.Track
-	paused        bool
-	loop          LoopMode
-	shuffle       ShuffleMode
+	guildID          snowflake.ID
+	channelID        snowflake.ID
+	playerMessage    *discord.Message /* The message that contains the player controls */
+	sessionMessage   *discord.Message
+	current          *lavalink.Track
+	tracks           []lavalink.Track
+	prevtracks       []lavalink.Track
+	paused           bool
+	loop             LoopMode
+	shuffle          ShuffleMode
+	sessionStartTime time.Time
 }
 
 // NewPlayer creates our custom player controller.
 func NewPlayer(guildID snowflake.ID, disgoPlayer disgolink.Player) *Player {
 	return &Player{
-		disgoPlayer:   disgoPlayer,
-		guildID:       guildID,
-		channelID:     0,
-		playerMessage: nil,
-		current:       nil,
-		tracks:        make([]lavalink.Track, 0),
-		prevtracks:    make([]lavalink.Track, 0),
-		paused:        false,
-		loop:          LoopNone,
-		shuffle:       ShuffleOff,
+		disgoPlayer:      disgoPlayer,
+		guildID:          guildID,
+		channelID:        0,
+		playerMessage:    nil,
+		sessionMessage:   nil,
+		current:          nil,
+		tracks:           make([]lavalink.Track, 0),
+		prevtracks:       make([]lavalink.Track, 0),
+		paused:           false,
+		loop:             LoopNone,
+		shuffle:          ShuffleOff,
+		sessionStartTime: time.Now(),
 	}
 }
 
@@ -98,6 +103,12 @@ func (p *Player) ClearState() {
 
 /* PlayNext determines the next track to play and starts it. */
 func (p *Player) PlayNext(ctx context.Context) error {
+
+	// Move the old track to previous tracks
+	if p.current != nil {
+		p.prevtracks = append(p.prevtracks, *p.current)
+	}
+
 	// If the queue is empty and we are not looping the current track, stop.
 	if len(p.tracks) == 0 && p.loop != LoopTrack {
 		p.current = nil
@@ -112,11 +123,6 @@ func (p *Player) PlayNext(ctx context.Context) error {
 	// If we are looping the current track, just play it again.
 	if p.loop == LoopTrack && p.current != nil {
 		return p.Play(ctx, *p.current)
-	}
-
-	// Move the old track to previous tracks
-	if p.current != nil {
-		p.prevtracks = append(p.prevtracks, *p.current)
 	}
 
 	var nextTrack lavalink.Track
@@ -141,7 +147,7 @@ func (p *Player) PlayPrevious(ctx context.Context) error {
 
 	if len(p.prevtracks) == 0 || p.Position() > lavalink.Second*10 {
 		/* empty recently played or more than 10 seconds have past of current track */
-		return p.Play(ctx, *p.current) /* restart current track */
+		return p.Seek(ctx, 0)
 	}
 	// Get the last played track
 	lastTrack := p.prevtracks[len(p.prevtracks)-1]
@@ -154,6 +160,10 @@ func (p *Player) Seek(ctx context.Context, position lavalink.Duration) error {
 		return nil
 	}
 	return p.disgoPlayer.Update(ctx, lavalink.WithPosition(position))
+}
+
+func (p *Player) AddToPrevious(track lavalink.Track) {
+	p.prevtracks = append(p.prevtracks, track)
 }
 
 func (p *Player) AddToQueue(tracks ...lavalink.Track) {
@@ -224,4 +234,28 @@ func (p *Player) ChannelID() snowflake.ID {
 
 func (p *Player) SetChannelID(channelID snowflake.ID) {
 	p.channelID = channelID
+}
+
+func (p *Player) SessionMessage() *discord.Message {
+	return p.sessionMessage
+}
+
+func (p *Player) SetSessionMessage(message *discord.Message) {
+	p.sessionMessage = message
+}
+
+func (p *Player) SessionStartTime() time.Time {
+	return p.sessionStartTime
+}
+
+func (p *Player) PreviousTracks() []lavalink.Track {
+	numTracks := len(p.prevtracks)
+	if numTracks == 0 {
+		return []lavalink.Track{}
+	}
+	reversedTracks := make([]lavalink.Track, numTracks)
+	for i, track := range p.prevtracks {
+		reversedTracks[len(p.prevtracks)-1-i] = track
+	}
+	return reversedTracks
 }
